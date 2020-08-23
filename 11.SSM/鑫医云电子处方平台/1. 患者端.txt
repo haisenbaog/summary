@@ -1,0 +1,151 @@
+接口数：患者 + 医生 + 平台 + 业务员 + 药店端 = 26 + 11 + 17 + 19 + 1 = 74
+一、患者端
+
+skill：
+	1. 加解密：req.setPassword(DecPwdUtil.strDecPassword(req.getPassword()));
+	2. token：WebTokenUtil.createJavaWebToken(map);	Map<String, Object> tokenMap = WebTokenUtil.parserJavaWebToken(req.getToken());
+	3. 流水号获取：accid = IdGeneratorFactory.generatorId(GeneratorIdType.YUNXINACCID);
+	4. kafka：KafkaUtil.getInstance().sendWriteClass(KafkaTopicConstant.prescriptionTraceTopic, record);
+	5. 添加记录，返回主键：useGeneratedKeys="true" keyProperty="addressId"
+	6. 字符串格式化：String nextCode = String.format("%07d", nextCodeInt);
+	7. http客户端：CloseableHttpClient httpclient = HttpClients.createDefault();
+	8. 单例工具类：
+		@Component
+		public class AccidRegister {
+			private static final Logger log = LoggerFactory.getLogger(AccidRegister.class);		
+			// 申明实例
+			public static AccidRegister INSTANCE;
+			// 依赖注入
+			@Autowired
+			private RedisTemplate<String, Object> redisTemplate;
+			@Resource
+			private OperationAccidRegisterParamterService operationAccidRegisterParamterService;		
+			// 初始化实例
+			@PostConstruct
+			public void init() {
+				INSTANCE = this;
+			}
+		}
+	
+business：
+	1. 患者注册（业务）
+	2. 推荐药店sql：
+		SELECT
+			CASE
+				WHEN get_distance (store.longitude, store.latitude, #{patientLongitude}, #{patientLatitude}) > 1000
+					THEN CONCAT(ROUND(get_distance (store.longitude, store.latitude, #{patientLongitude}, #{patientLatitude})/1000,1),'km')
+				WHEN 1000 > get_distance (store.longitude, store.latitude, #{patientLongitude}, #{patientLatitude})
+					THEN CONCAT(get_distance (store.longitude, store.latitude, #{patientLongitude}, #{patientLatitude}),'m')
+				ELSE NULL END distance
+		FROM
+			store_base_info store
+		INNER JOIN (
+			SELECT
+				t1.store_id
+			FROM
+				(
+					SELECT DISTINCT
+						goods.store_id,
+						goods.common_name,goods.packing_rule,goods.factory_name
+					FROM
+						store_base_goods goods
+					INNER JOIN biz_prescription_info_detail detail ON goods.common_name = detail.common_name
+					AND goods.packing_rule = detail.packing_rule AND goods.factory_name = detail.factory_name
+					WHERE
+						detail.prescription_id = #{prescriptionId}
+					AND goods.province = #{patientProvince}
+				) t1
+			GROUP BY
+				t1.store_id
+			HAVING
+				count(*) = #{drugCount}
+		) t2 ON store.id = t2.store_id
+		ORDER BY
+			get_distance (store.longitude, store.latitude, #{patientLongitude}, #{patientLatitude}) ASC
+	3. 设置默认收货地址sql：
+		UPDATE patient_demand_order_address
+		SET is_default = (CASE id WHEN #{addressId} THEN 1 ELSE 0 END)
+		WHERE
+			patient_tel = #{patientTel}
+	4. 订单预览sql：
+		SELECT
+			detail.common_name,
+			detail.packing_rule,
+			detail.factory_name,
+			detail.number,
+			IFNULL(goods.sale_price, 0) sale_price,
+			detail.number * IFNULL(goods.sale_price, 0) sub_total
+		FROM
+			biz_prescription_info_detail detail
+		LEFT JOIN store_base_goods goods ON detail.common_name = goods.common_name
+		AND detail.packing_rule = goods.packing_rule
+		AND detail.factory_name = goods.factory_name
+		WHERE
+			detail.prescription_code = #{prescriptionCode}
+		AND goods.store_id = #{storeId}
+	5. 订单提交（业务+sql）
+		INSERT INTO biz_demand_order (
+			order_code, prescription_code, prescription_type,
+			store_id, store_name,
+			patient_id, patient_tel, patient_name, patient_address,
+			demand_type, order_status, create_time, pay_type, pay_status, pay_money
+		) SELECT
+			#{orderCode},#{prescriptionCode},#{prescriptionType},
+			#{storeId},#{storeName},
+			#{patientId},#{patientTel},#{patientName},#{patientAddress},
+			#{demandType},#{orderStatus},#{createTime},#{payType},#{payStatus},#{payMoney}
+		FROM
+			DUAL
+		WHERE
+			NOT EXISTS (
+				SELECT
+					id
+				FROM
+					biz_demand_order
+				WHERE
+					prescription_code = #{prescriptionCode}
+				AND order_status IN (0, 1, 2, 3)
+			)
+
+		INSERT INTO biz_demand_order_item (
+			item_code,
+			order_code,
+			common_name,
+			packing_rule,
+			factory_name,
+			drug_num,
+			single_price,
+			subtotal
+		)
+		VALUES
+		<foreach collection="orderItemList" index="index" item="item" separator=",">
+			(#{item.itemCode}, #{item.orderCode}, #{item.commonName}, #{item.packingRule}, #{item.factoryName}, #{item.drugNum}, #{item.singlePrice}, #{item.subtotal})
+		</foreach>
+	6. 确认收货sql：
+		UPDATE biz_demand_order demand
+		LEFT JOIN biz_prescription_info prescription ON demand.prescription_code = prescription.`code`
+		LEFT JOIN biz_distribution_order distribution ON demand.order_code = distribution.demand_code
+		SET demand.order_status = 0,
+			prescription.is_take_drug = 1,		<!-- 取药状态：0-未取药（可发起取药操作），1-已取药（不可再发起取药操作），2-取药进行中（不可再发起取药操作，当取药过程取消后，进入0-未取药状态） -->
+			prescription.take_drug_time = now(),
+			distribution.`status` = 2,			<!-- 配送状态 0：备货中  1：配送中   2：配送完成   -1：取消 -->
+			distribution.distribute_end_time = NOW()
+		WHERE
+			demand.order_code = #{orderCode}
+		AND demand.order_status = 3				<!-- 订单状态 -1:取消  -2:拒绝  1:待接单  2:接受  3:配送中  0:完成 -->
+	7. 取消订单sql：
+		UPDATE biz_demand_order demand
+		LEFT JOIN biz_prescription_info prescription ON demand.prescription_code = prescription.`code`
+		SET demand.order_status = - 1, prescription.is_take_drug = 0
+		<if test="payStatus != null">
+			,demand.pay_status = #{payStatus.value}, demand.refundment_apply_time = NOW()
+		</if>
+		WHERE
+			demand.order_code = #{orderCode}
+		AND demand.order_status IN (1, 2)
+		
+docking：
+	1. 网易云信
+
+question：
+	1. 限制接口调用频率（eg：发送短信）

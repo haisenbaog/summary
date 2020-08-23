@@ -1,0 +1,261 @@
+四、 业务员
+
+skill：
+	
+
+business：
+	1. 业务查询医生可添加药品列表sql：
+		SELECT
+			drug.id drugId,
+			drug.med_name medName,
+			drug.packing_spec packingSpec,
+			drug.package_unit_name packageUnitName,
+			drug.factory_name factoryName,
+			drug.license_number licenseNumber,
+			CASE
+		WHEN doctorDrug.drug_info_id IS NULL THEN
+			0
+		WHEN doctorDrug.drug_info_id IS NOT NULL THEN
+			1
+		ELSE
+			2
+		END alreadBinding
+		FROM
+			org_salesman_drug_relation salesmanDrug
+		LEFT JOIN (
+			SELECT
+				drug_info_id
+			FROM
+				org_doctor_durg_relation
+			WHERE
+				doctor_id = #{doctorId}
+			AND hospital_id = #{hospitalId}
+		) doctorDrug ON doctorDrug.drug_info_id = salesmanDrug.drug_id
+		LEFT JOIN org_drug_info drug ON drug.id = salesmanDrug.drug_id
+		WHERE
+			salesmanDrug.salesman_id = #{salesmanId}
+		AND doctorDrug.drug_info_id IS NULL
+		AND drug.disabled = 0
+		<if test="drugName != null and drugName != ''">
+		AND drug.med_name LIKE CONCAT('%', #{drugName}, '%')
+		</if>
+		ORDER BY
+			drug.med_name asc
+	2. 业务员查询医生可添加药店列表sql：
+		SELECT DISTINCT
+			#{salesmanId} salesmanId, #{doctorId} doctorId, #{hospitalId} hospitalId, #{storeName} storeName,
+			province.province,
+			city.city,
+			district.area district,
+			province.province_id,
+			city.city_id,
+			district.area_id
+		FROM
+			org_salesman_store_relation salesmanStore
+		LEFT JOIN (
+			SELECT
+				store_id
+			FROM
+				org_doctor_store_relation
+			WHERE
+				doctor_id = #{doctorId}
+			AND hospital_id = #{hospitalId}
+		) doctorStore ON doctorStore.store_id = salesmanStore.store_id
+		LEFT JOIN store_base_info store ON store.id = salesmanStore.store_id
+		LEFT JOIN base_provinces province ON province.province_id = store.province
+		LEFT JOIN base_provinces_cities city ON city.city_id = store.city
+		LEFT JOIN base_provinces_cities_district district ON district.area_id = store.district
+		WHERE
+			salesmanStore.salesman_id = #{salesmanId}
+		AND store.store_source = 3		<!-- 药店来源 0:平台 1:商城 2: 药店自己注册 3 机构（0,1,2）都属于平台 -->
+		AND store.state = 1				<!-- 0删除1未删除 -->
+		AND store.verifier_state = 2	<!-- 审核状态0未审核,1不通过,2通过 -->
+		<if test="storeName != null and storeName != ''">
+		AND store.name LIKE CONCAT('%', #{storeName}, '%')
+		</if>
+		AND doctorStore.store_id IS NULL
+		ORDER BY
+			province.province ASC,
+			city.city ASC,
+			district.area ASC
+	3. 给医生设置默认药店sql：
+		UPDATE org_doctor_store_relation
+		SET is_default = CASE
+		WHEN doctor_id = #{doctorId}
+		AND hospital_id = #{hospitalId}
+		AND store_id = #{storeId} THEN
+			1
+		WHEN doctor_id = #{doctorId}
+		AND hospital_id = #{hospitalId}
+		AND store_id != #{storeId} THEN
+			0
+		ELSE
+			is_default
+		END
+	4. 数据中心sql:
+		SELECT
+			DATE_FORMAT(bill.create_time, #{dateFormat.mysqlFormat}) time,	
+			ROUND(SUM(CASE WHEN bill.is_take = 1 THEN IFNULL(detail.number,0) ELSE 0 END)) takeCount,
+			ROUND(SUM(CASE WHEN bill.is_take = 0 THEN IFNULL(detail.number,0) ELSE 0 END)) untakeCount,
+			ROUND(SUM(IFNULL(detail.number,0))) totalCount,
+			IFNULL(SUM(CASE WHEN bill.is_take = 1 THEN IFNULL(detail.number,0) ELSE 0 END)/SUM(IFNULL(detail.number,0)),0) rate
+		FROM
+			org_advise_bill_info bill
+		LEFT JOIN org_salesman_doctor_relation relation ON relation.doctor_id = bill.doctor_id AND relation.hospital_id = bill.hospital_id
+		LEFT JOIN org_advise_bill_info_detail detail ON detail.bill_code = bill.bill_code
+		LEFT JOIN org_drug_info drug ON drug.med_name = detail.commodity_name AND drug.packing_spec = detail.packing_rule AND drug.factory_name = detail.factory_name
+		WHERE
+			relation.salesman_id = #{salesmanId}
+		<if test="doctorId != null and doctorId != ''">
+			AND bill.doctor_id = #{doctorId}
+		</if>
+		<if test="storeId != null and storeId != ''">
+			AND bill.store_id = #{storeId}
+		</if>
+		<if test="drugId != null and drugId != ''">
+			AND drug.id = #{drugId}
+		</if>
+		<if test="startTime !=null">
+			AND DATE_FORMAT(bill.create_time, #{dateFormat.mysqlFormat}) >= DATE_FORMAT(#{startTime}, #{dateFormat.mysqlFormat})
+		</if>
+		<if test="endTime !=null">
+			AND DATE_FORMAT(#{endTime}, #{dateFormat.mysqlFormat}) >= DATE_FORMAT(bill.create_time, #{dateFormat.mysqlFormat})
+		</if>
+		GROUP BY
+			time
+	5. 数据中心Java：
+		req：
+		public class DataReq implements Serializable {
+
+			private static final long serialVersionUID = -2571965410015089696L;
+
+			// 登录令牌
+			private String token;
+			// 业务员id
+			private Integer salesmanId;
+			// 医生id
+			private Integer doctorId;
+			// 药店id
+			private Integer storeId;
+			// 药品id
+			private Integer drugId;
+			// 日期格式（0：按日查询，1：按月查询）
+			private DateFormatEnum dateFormat;
+			// 查询开始时间
+			@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = DateJsonFormat.YMD, timezone = DateJsonFormat.TIMEZONE_BEIJING)
+			private Date startTime;
+			// 查询截止时间
+			@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = DateJsonFormat.YMD, timezone = DateJsonFormat.TIMEZONE_BEIJING)
+			private Date endTime;	
+		}
+		
+		Enum：
+		public enum DateFormatEnum {
+			DAY("%Y-%m-%d","yyyy-MM-dd", "年-月-日"), MONTH("%Y-%m","yyyy-MM", "年-月");
+
+			private final String mysqlFormat;
+			private final String javaFormat;
+			private final String desc;
+
+			private DateFormatEnum(String mysqlFormat, String javaFormat, String desc) {
+				this.mysqlFormat = mysqlFormat;
+				this.javaFormat = javaFormat;
+				this.desc = desc;
+			}
+
+			public String getMysqlFormat() {
+				return mysqlFormat;
+			}
+			public String getJavaFormat() {
+				return javaFormat;
+			}
+			public String getDesc() {
+				return desc;
+			}
+		}
+		
+		res：
+		public class DataRes implements Serializable {
+
+			private static final long serialVersionUID = 7433864356269146709L;
+
+			// 日期或者月份
+			private String time;
+			// 已取数量
+			private Integer takeCount;
+			// 未取数量
+			private Integer untakeCount;
+			// 总数
+			private Integer totalCount;
+			// 转化率
+			private String rate;
+			
+			public DataRes() {
+				super();
+			}
+			public DataRes(String time) {
+				super();
+				this.time = time;
+				this.takeCount = 0;
+				this.untakeCount = 0;
+				this.totalCount = 0;
+				this.rate = "0.0000";
+			}
+			
+			public String getRate() {
+				return rate;
+			}
+			public void setRate(double rate) {
+				this.rate = new DecimalFormat("0.0000").format(rate);
+			}
+		}
+		
+		数据处理：
+		// 按时间轴的时间单位，将数据填充完整（查询出的数据，不包含空值）
+		private List<DataRes> fillListByTime(List<DataRes> list, DataReq req) {
+			// 将原始数据放入map，便于操作
+			Map<String, DataRes> map = new HashMap<>();
+			if (list != null) {
+				for (DataRes dataRes : list) {
+					map.put(dataRes.getTime(), dataRes);
+				}
+			}
+			// 构建新列表，用于保存完整数据
+			List<DataRes> newList = new ArrayList<>();
+			Date date = req.getStartTime();
+			// 按时间顺序，按横轴时间单位，依次添加
+			while (date.compareTo(req.getEndTime()) <= 0) {
+				String dateString = DateUtil.formatDate(req.getDateFormat().getJavaFormat(), date);
+				// 存在则直接添加，不存在则添加空的
+				if (map.containsKey(dateString)) {
+					newList.add(map.get(dateString));
+				} else {
+					newList.add(new DataRes(dateString));
+				}
+				// 更新循环变量
+				if (req.getDateFormat() == DateFormatEnum.DAY) {
+					date = DateUtil.getAddDayDate(date, 1);
+				} else {
+					date = DateUtil.getAddMonthDate(date, 1);
+				}
+			}
+			
+			// 如果是按日查询，此时日期格式为yyyy-MM-dd，为方便展示，将日期格式转化为MM-dd
+			if (req.getDateFormat() == DateFormatEnum.DAY && newList != null) {
+				for (DataRes data : newList) {
+					data.setTime(data.getTime().substring(5));
+				}
+			}
+			return newList;
+		}
+
+  <resultMap type="com.essence.prescript.res.salesman.StoreListBelongToDoctorRes" id="getStoreListByDoctorIdAndHospitalIdAndSalesmanIdResultMap">
+  	<result column="province" property="province"/>
+  	<result column="city" property="city"/>
+  	<result column="district" property="district"/>
+	<collection property="storeList" ofType="com.essence.prescript.res.salesman.StoreBelongToDoctor"
+		javaType="java.util.List"
+		select="getStoreListByDoctorIdAndHospitalIdAndSalesmanIdWithArea"
+		column="{salesmanId = salesmanId, doctorId = doctorId, hospitalId = hospitalId, storeName = storeName, province_id = province_id, city_id = city_id, area_id = area_id}" >
+	</collection>
+  </resultMap>

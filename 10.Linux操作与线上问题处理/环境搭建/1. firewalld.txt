@@ -1,0 +1,21 @@
+1. systemctl start NetworkManager
+
+2. systemctl start firewalld
+[root@hzl ~]# systemctl status firewalld
+● firewalld.service - firewalld - dynamic firewall daemon
+   Loaded: loaded (/usr/lib/systemd/system/firewalld.service; disabled; vendor preset: enabled)
+   Active: inactive (dead)
+     Docs: man:firewalld(1)
+[root@hzl ~]# systemctl start firewalld
+[root@hzl ~]# systemctl status firewalld
+● firewalld.service - firewalld - dynamic firewall daemon
+   Loaded: loaded (/usr/lib/systemd/system/firewalld.service; disabled; vendor preset: enabled)
+   Active: active (running) since Tue 2019-04-30 17:19:56 CST; 6s ago
+     Docs: man:firewalld(1)
+ Main PID: 8945 (firewalld)
+   CGroup: /system.slice/firewalld.service
+           └─8945 /usr/bin/python -Es /usr/sbin/firewalld --nofork --nopid
+
+Apr 30 17:19:56 hzl systemd[1]: Starting firewalld - dynamic firewall daemon...
+Apr 30 17:19:56 hzl systemd[1]: Started firewalld - dynamic firewall daemon.
+

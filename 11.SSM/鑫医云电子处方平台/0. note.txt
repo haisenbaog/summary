@@ -1,0 +1,10 @@
+1. 登录密码：D06DFB926364FC22A875D47CD32936EC
+
+2. 逆向工程：mybatis-generator:generate
+
+3. app外网地址：http://app.fda365.cn/xyyappys/api/
+
+4. jar包安装：
+mvn install:install-file -DgroupId=com.alipay -DartifactId=sdk-java -Dversion=20170324180803 -Dpackaging=jar -Dfile=alipay-sdk-java20170324180803.jar
+
+mvn install:install-file -DgroupId=com.elp -DartifactId=okio-1.3.0-SNAPSHOT -Dversion=1.0.1 -Dpackaging=jar -Dfile=F:/okio-1.3.0-SNAPSHOT-1.0.1.jar

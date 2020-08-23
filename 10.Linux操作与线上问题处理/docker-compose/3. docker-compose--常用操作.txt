@@ -1,0 +1,5 @@
+docker-compose up -d
+
+docker-compose up --scale ${appName}=n -d
+
+docker-compose stop

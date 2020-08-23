@@ -1,0 +1,157 @@
+redis常用技术:
+
+1. spring中使用redis，配置如下:poolConfig,jedisConnFactory,redisTemplate
+	<bean id="poolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxIdle" value="${redis.pool.maxIdle}" />
+		<property name="maxTotal" value="${redis.pool.maxTotal}" />
+		<property name="maxWaitMillis" value="${redis.timeout}" />
+	</bean>
+	<bean id="jedisConnFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+		<property name="poolConfig" ref="poolConfig" />
+		<property name="hostName" value="${redis.hostName}" />
+		<property name="port" value="${redis.port}" />
+		<property name="password" value="${redis.pwd}" />
+		<property name="usePool" value="true" />
+	</bean>
+	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+		<property name="connectionFactory" ref="jedisConnFactory" />
+		<property name="keySerializer"><bean class="org.springframework.data.redis.serializer.StringRedisSerializer" /></property>
+		<property name="valueSerializer"><bean class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer" /></property>
+		<property name="hashKeySerializer"><bean class="org.springframework.data.redis.serializer.StringRedisSerializer" /></property>
+		<property name="hashValueSerializer"><bean class="org.springframework.data.redis.serializer.JdkSerializationRedisSerializer" /></property>
+	</bean
+
+2. 用同一连接进行操作。使用SessionCallback（更简单）接口或者RedisCallback（更底层）接口。
+	SessionCallback callback = new SessionCallback<String>(){
+		public String execute(RedisOperations ops) throws DataAccessException {
+			ops.boundValueOps("key1").set("value1");
+			return (String)ops.boundValueOps("key1").get();
+		}
+	}
+	String t = (String) redisTemplate.execute(callback);
+	
+3. redis事务。要使用一个连接，可以使用SessionCallback接口。
+	SessionCallback callback = new SessionCallback<String>(){
+		public String execute(RedisOperations ops) throws DataAccessException {
+			ops.multi();
+			ops.boundValueOps("key1").set("value1");
+			Stirng value = ops.boundValueOps("key1").get();	// 事务执行过程中，命令进入队列，没有被执行，所以value为空
+			List list = ops.exec();	// 执行事务，返回队列中所有命令的执行结果
+			return (String)ops.boundValueOps("key1").get();
+		}
+	}
+	String t = (String) redisTemplate.execute(callback);
+	注意:multi命令之后，所有的get方法返回都为空。在exec命令之后，get方法才能返回正常结果。
+
+4. watch命令监控事务。类似多线程中的CAS
+	在multi命令之前使用watch命令监控某些键值对
+	在执行exec命令时，先对比被watch命令监控的键值对，如果没有变化，则执行事务队列中的命令，提交事务；如果发生变化，则回滚事务。然后取消watch命令。
+	
+5. 流水线pipelined（没有附加条件的批量执行）。redis事务提供了命令队列，可以批量执行。但这是有系统开销的，他会检测对应的锁和序列化命令。
+	和事务的执行方法类似，使用RedisTemplate提供的executePipelined方法即可。
+	SessionCallback callback = new SessionCallback<String>(){
+		public String execute(RedisOperations ops) throws DataAccessException {
+			for(int i=0; i<1000; i++){
+				ops.boundValueOps("key"+i).set("value"+i);
+				ops.boundValueOps("key"+i).get();
+			}
+			return null;
+		}
+	}
+	List list = redisTemplate.executePipelined(callback);
+	
+6. 发布订阅
+	1. 提供接收消息的类，实现MessageListener接口，实现方法public void onMessage(Message message， byte[] channel)；
+	2. 向渠道chat1发送消息。redisTemplate.convertAndSend("chat1", "消息");
+	3. 配置监听容器。属性有：redis连接工厂，线程池（ThreadPoolTaskScheduler），监听类及其监听的渠道。
+	
+7. redis分布式锁
+		
+	RedisCallback<String> callback = (connection) -> {		// T doInRedis(RedisConnection connection) throws DataAccessException;
+		JedisCommands commands = (JedisCommands) connection.getNativeConnection();
+		return commands.set(lock, lockId, "NX", "PX", expire);
+	};
+	String result = (String) redisTemplate.execute(callback);
+	
+
+	// spring自带的执行脚本方法中，集群模式直接抛出不支持执行脚本的异常，所以只能拿到原redis的connection来执行脚本
+	RedisCallback<Long> callback = (connection) -> {		// 父接口JedisCommands中，没有eval方法
+		Object nativeConnection = connection.getNativeConnection();
+		if (nativeConnection instanceof JedisCluster) {
+			return (Long) ((JedisCluster) nativeConnection).eval(UNLOCK_LUA, Collections.singletonList(lock), Collections.singletonList(lockId));
+		}else if (nativeConnection instanceof Jedis) {
+			return (Long) ((Jedis) nativeConnection).eval(UNLOCK_LUA, Collections.singletonList(lock), Collections.singletonList(lockId));
+		}
+		return 0L;
+	};
+	Long result = (Long) redisTemplate.execute(callback);
+	
+	
+	问题1:		这种方案也不是那么的完美，如果出现线程业务超时完成的话，那么一样会有别的线程可以获取到锁执行自己的业务，这样虽然不会误删当前线程的锁，但是，这个线程获取到的数据或者变量是上一个锁执行完成之后的，一样可能会造成数据异常。
+	如果项目要求高的话，可以尝试使用zookeeper来做分布式锁，或者别的解决方案。	
+	事实上这类琐最大的缺点就是它加锁时只作用在一个Redis节点上，即使Redis通过sentinel保证高可用，如果这个master节点由于某些原因发生了主从切换，那么就会出现锁丢失的情况：
+		在Redis的master节点上拿到了锁；
+		但是这个加锁的key还没有同步到slave节点；
+		master故障，发生故障转移，slave节点升级为master节点；
+		导致锁丢失。
+	正因为如此，Redis作者antirez基于分布式环境下提出了一种更高级的分布式锁的实现方式：Redlock。笔者认为，Redlock也是Redis所有分布式锁实现方式中唯一能让面试官高潮的方式。
+===========================================================================================================
+
+redis配置：
+1. redis持久化
+	1. 快照的方式，snapshotting。备份当前瞬间redis内存中的数据记录。备份时，数据量大可能卡顿；重启恢复时，比较快。
+	2. 追加命令文件的方式，AOF，Append-Only File。根据配置，将redis执行过的写命令依次保存在文件中。备份时，只是追加命令不卡顿；重启恢复时，执行命令文件可能卡顿
+	
+	save 900 1
+	save 300 10
+	save 60 10000
+	
+	# appendfsync always
+	appendfsync everysec
+	# appendfsync no
+	
+2. redis内存回收策略。lru与ttl都不是精确算法。
+	volatile-lru:	最近最少使用，已过期的。
+	allkeys-lru:	最近最少使用，所有的。
+	
+	volatile-random:随机淘汰，已过期的。
+	allkeys-random:	随机淘汰，所有的。
+	
+	volatile-ttl:	剩余存活时间最短的。 maxmemory-samples 默认值为3，表示探测3个样本，删除剩余存活时间最短的。该值越大越精确，但更耗时。
+	noeviction:		不淘汰，当内存满时，只读不写。
+
+3. redis主从同步（复制）
+	1. 配置
+		slaveof server port
+		bind 127.0.0.1
+	2. 主从同步过程
+		file:///C:/Users/Administrator/Desktop/redis-master-slave.png
+
+4. 哨兵模式（Sentinel）
+	每个哨兵通过心跳检测，监视各个redis服务器以及其他各个哨兵。
+	哨兵的主观下线，达到配置的数量时，确认主服务器不可用，哨兵间进行投票，进行故障切换操作failover，进而完成主服务器的切换，该过程称为客观下线。
+	spring配置：redis连接工程，要加一个哨兵的配置
+===========================================================================================================
+
+Redis为什么这么快：
+1. 纯内存操作
+2. 单线程操作避免了频繁的上下文切换，不需要考虑加锁解锁等锁操作
+3. 采用了非阻塞I/O多路复用机制
+4. 高效的数据结构
+5. 合理的数据编码
+
+Redis和数据库双写一致性：
+先更新数据库，再更新缓存。缓存可能更新失败，补偿机制：使用消息队列
+
+Redis缓存穿透：
+1. 互斥锁。缓存失效时，先获得锁，再访问数据库，没得到锁的短暂休眠后重试
+2. key设置过期标记，异步更新缓存
+
+Redis缓存雪崩：
+1. key设置不同的过期时间
+2. key设置过期标记，异步更新缓存
+3. 互斥锁
+4. 二级缓存
+===========================================================================================================	
+
+redis集群（！！！）

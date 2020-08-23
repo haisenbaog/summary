@@ -1,0 +1,41 @@
+一、单机版
+1.下载：可以去官网直接下载各个版本（3.5以上的下载bin版本）
+	wget https://apache.org/dist/zookeeper/zookeeper-3.5.5/apache-zookeeper-3.5.5.tar.gz
+	
+2.解压
+	tar zxvf apache-zookeeper-3.4.14.tar.gz 
+	
+3.配置
+	cd apache-zookeeper-3.4.14
+	mkdir data
+	mkdir logs
+	
+	cd apache-zookeeper-3.4.14/conf
+	cp zoo_sample.cfg zoo.cfg
+	vim zoo.cfg
+	dataDir={元数据目录的绝对路径}
+	dataLogDir={日志目录的绝对路径}
+	
+4.启动
+	zookeeper-3.4.14/bin/zkServer.sh start/stop/status
+	
+二、集群版
+1.将配置好的单机版zookeeper复制3份，分别命名zookeeper-01，zookeeper-02，zookeeper-03
+
+2.在每份配置文件zoo.cfg中修改以下属性：
+	dataDir（元数据目录）
+	dataLogDir（日志目录）
+	clientPort（对外暴露的服务端口）
+	
+3.在每份配置文件zoo.cfg中添加以下属性：
+	server.1=172.16.123.144:2881:3881
+	server.2=172.16.123.144:2882:3882
+	server.3=172.16.123.144:2883:3883
+	
+	说明：server.{myid文件中的内容}={zk所在主机ip}:{zk间通信的端口}:{zk选举leader的端口}
+	
+4.在每份data目录下添加文件myid，内容分别为：1,2,3
+
+三、tips
+	zookeeper启动失败，查看log，发现启动时缺少类。更换稍早的一个版本，问题解决。（3.5.5有两个文件夹，只下载了一个。3.5以上版本可以直接下载bin版本）
+	https://apache.org/dist/zookeeper/zookeeper-3.4.14/zookeeper-3.4.14.tar.gz

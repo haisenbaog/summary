@@ -1,0 +1,123 @@
+生产者:
+
+1. Properties props = new Properties();
+	props.put("bootstrap.servers","broker1:port1,borker2:port2");
+	props.put("key.serializer","org.apache.kafka.common.serialization.StringSerializer");
+	props.put("value.serializer","org.apache.kafka.common.serialization.StringSerializer");		
+			
+2. KafkaProducer producer = new KafkaProducer<String,String>(props);
+
+3. ProducerRecord<String,String> record = new ProducerRecord<>("topic","key","value");
+
+4.  Future<RecordMetadata> future = producer.send(record);	RecordMetadata rmd = future.get();
+
+	producer.send(record, new Callback(){
+		public void onCompletion(RecordMetadata rdm, Exception e){
+		}
+	})	
+
+消费者:7F 0C 81 F9 80 33 E1 01 0F 86 80
+	
+1. Properties props = new Properties();
+	props.put("bootstrap.servers","broker1:port1,borker2:port2");
+	props.put("key.deserializer","org.apache.kafka.common.serialization.StringDeserializer");
+	props.put("value.deserializer","org.apache.kafka.common.serialization.StringDeserializer");	
+	props.put("group.id","groupId");
+
+2. KafkaConsumer<String,String> consumer = new KafkaConsumer<>(props);
+
+3. consumer.subscribe(Collections.singletonList("topic"));	// 参数为一个主题列表，也可以传入正则表达式。
+
+4. ConsumerRecords<String,String> records = consumer.poll(200);
+	for(ConsumerRecord<String,String> record : records){
+		record.topic(),record.partition(),record.offset(),record.key(),record.value();
+	}
+
+5. tips:最好将每个消费者及其操作逻辑封装在一个对象中，用ExecutorService线程池，让每个消费者运行在自己的线程里
+
+6. 提交偏移量
+	偏移量作用：再均衡之后，消费者需要读取每个分区的偏移量，然后从偏移量指定的位置继续处理。（可能重复处理/丢失消息）
+	1. 自动提交
+		enable.auto.commit	true；	auto.commit.interval.ms 5000;
+		消费者每次在轮询（poll）的时候，会检查是否该提交偏移量了，如果是，就会提交上一次轮询返回的消息的最大偏移量。
+		最后一次提交到再均衡之间的消息，将重复消费。
+	2. 手动同步提交（默认提交，指定提交）
+		consumer.commitSync();
+		提交poll返回的最新偏移量，要在处理完所有记录后再提交，否则可能丢失消息。再均衡时依然会重复消费部分消息。
+		提交可能阻塞，限制吞吐量。
+		ConsumerRecords<String,String> records = consumer.poll(200);
+		for(ConsumerRecord<String,String> record : records){ }
+		try{
+			consumer.commitSync();
+		}catch(CommitFailedException e){
+			log.error("commit failed", e);
+		}
+	3. 手动异步提交（默认提交，指定提交，回调）
+		默认，回调
+		ConsumerRecords<String,String> records = consumer.poll(200);
+		for(ConsumerRecord<String,String> record : records){ }
+		// consumer.commitAsync();
+		consumer.commitAsync(new OffsetCommitCallback(){
+			public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception e){
+				if (e != null){
+					log.error("Commit failed ...", offsets, e);
+				}
+			}
+		})；
+		指定（消费者可能读取多个分区，需要跟踪所有分区的偏移量）
+		Map<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
+		for(ConsumerRecord<String,String> record : records){
+			currentOffsets.put(new TopicPartition(record.topic(), record.partition()), new OffsetAndMetadata(record.offset()+1, "no metadata"));
+			if (count % 100 == 0){
+				consumer.commitAsync(currentOffsets,null);
+			}
+		}
+
+7. 读取特定偏移量
+	for(TopicPartition partition : consumer.assignment()){
+		consumer.seek(partition, getMyOffset(partition));
+	}
+	ConsumerRecords<String,String> records = consumer.poll(200);	
+
+消费者群组：
+	一个消费者群组里的消费者订阅的是同一个主题，每个消费者接受主题一部分分区的消息。超过分区数量的消费者将被闲置。
+	不同的群组可以订阅同一个主题，每个群组都能获取该主题的全部消息。
+分区再均衡：
+	分区的所有权，由一个消费者转移到另一个消费者的行为。
+	消费者增加或减少，分区增加，会发生分区再均衡。
+	为消费者群组增加了高可用性和伸缩性。
+	再均衡期间，消费者无法读取消息，整个群组不可用；当分区重新分配给另一个消费者的时候，读取状态丢失。
+	消费者通过向群组里的群组协调器，发送心跳，来维持和群组的从属关系，以及它们对分区的所有权。	
+
+8. 再均衡监听器
+	消费者在失去对一个分区的所有权之前，提交最后一个已处理的记录的偏离量。（需维护已处理的偏移量）
+	Map<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
+	
+	private class HandleRebalance implements ConsumerRebalanceListener{
+		@Override // 再均衡前
+		public void onPartitionsRevoked(Collection<TopicPartition> partitions){
+			consumer.commitSync(currentOffsets);
+		}
+		@Override // 再均衡后
+		public void onPartitionsAssigned(Collection<TopicPartition> partitions){
+			for(TopicPartition partition : consumer.assignment()){
+				consumer.seek(partition, getMyOffset(partition));
+			}		
+		}
+	}
+	
+	consumer.subscribe(topics, new HandleRebalance());
+	
+0. 	基于发布与订阅的消息系统。
+	通过横向扩展生产者、消费者和broker，Kafka可以轻松处理巨大的消息流。
+	
+	主题可以跨多个服务器，以此提供更强大的功能；一个主题分为若干分区。
+	消息以追加的方式写入分区，以先入先出的顺序读取。
+	主题范围无法保证消息顺序，分区范围内可以保证，先入先出。
+	
+broker集群：
+
+1. 	集群中，一个分区从属于一个broker，该broker被称为分区的首领。
+	一个分区可以分配给多个broker，这个时候会发生分区复制。
+	分区复制为分区提供了消息冗余，如果有一个broker失效，其他broker可以接管领导权。不过生/消要重新连接到新的首领。
+	

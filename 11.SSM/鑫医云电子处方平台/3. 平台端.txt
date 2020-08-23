@@ -1,0 +1,26 @@
+三、 平台端
+
+skill：
+	1. 配置文件读取：
+		StringBuilder picturePrefix = new StringBuilder()
+		.append(FtpBaseConstant.PROTOCOL)
+		.append(FtpBaseConstant.getInstance().findProperties(FtpBaseConstant.FILE_SERVER_BASE_URL));
+	2. 根据字段值指定顺序排序：
+        ORDER BY
+			FIELD(doctor.state, 0, 1 ,- 1 ,- 2),
+			doctor.create_time DESC
+
+business：
+	1. 趣链同步
+	2. 医生红包
+	3. 有效在线时长
+
+docking：
+	1. 账单下载与解析
+
+question：
+	1. 服务生产者，同时是服务消费者
+
+
+	
+	

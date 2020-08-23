@@ -1,0 +1,50 @@
+1. 防火墙与防火墙管理工具
+	netfilter							## 内核中的网络过滤器，实现真正的防火墙功能
+	iptables服务、firewalld服务			## 定义防火墙规则的防火墙管理工具
+	
+2. firewalld
+	特点：拥有运行时配置与永久配置选项，支持动态更新，区域概念zone定义网络连接的可信等级
+	zone：trusted，home，internal，work，public，external，dmz，block，drop		默认区域：public
+	firewall-cmd，常用命令参数：
+		--add-service=服务名			## 默认区域允许该服务的流量
+		--add-port=端口号/协议			## 默认区域允许该端口的流量
+		--remove-service=服务名		## 默认区域不再允许该服务的流量
+		--remove-port=端口号/协议		## 默认区域不再允许该端口的流量
+		--reload						## 重启防火墙
+		--list-ports					## 开放的端口
+		--list-services					## 开放的服务
+		--query-service=服务名			## 服务是否开放
+		--permanent						## 永久生效的
+		--zone=区域名称
+		
+		--add-source=
+		--remove-source=
+		--add-interface=网卡名称
+		--change-interface=网卡名称
+		--get-zones
+		--get-active-zones
+		--get-default-zone
+		--set-default-zone=区域名称
+
+3. 服务访问控制（貌似没用。。）
+	/etc/hosts.allow					## 允许名单
+	/etc/hosts.deny						## 拒绝名单
+	
+	服务名称:匹配目标					## 匹配规则
+	
+	匹配目标：
+		192.168.10.10					## 指定主机
+		192.168.10.						## 指定网段
+		192.168.10.0/255.255.255.0		## 指定网段
+		.linuxprobe.com					## 指定DNS后缀
+		boos.linuxprobe.com				## 指定主机名称
+		ALL								## 所有客户端
+
+4. 端口转发(eg：将访问192.168.10.10主机8888端口的请求，转发至22端口)
+	firewall-cmd --permanent --zone=public --add-forward-port=port=8888:proto=tcp:toport=22:toaddr=192.168.10.10
+	
+5. 流量均衡
+	
+		
+		
+	

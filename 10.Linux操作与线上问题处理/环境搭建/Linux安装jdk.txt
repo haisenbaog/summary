@@ -1,0 +1,19 @@
+1. 下载jdk
+	#可以通过华为云等镜像站点下载
+
+2. 解压jdk
+	#在/usr/local下创建目录jdk
+	#进入目录/usr/local/jdk
+	tar xzvf jdk-8u181-linux-x64.tar.gz -C /usr/local/jdk
+	
+3. 配置环境变量
+	#将如下配置，追加到/etc/profile配置文件中。
+	export JAVA_HOME=/usr/local/jdk/jdk1.8.0_192
+	export CLASSPATH=$JAVA_HOME/lib/
+	export PATH=$PATH:$JAVA_HOME/bin
+
+4. 刷新环境变量
+	source /etc/profile
+	
+5. 查看安装效果
+	java -version

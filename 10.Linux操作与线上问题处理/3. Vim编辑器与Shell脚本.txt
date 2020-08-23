@@ -1,0 +1,145 @@
+三、Vim编辑器与Shell命令脚本
+1.Vim编辑器（命令模式，输入模式，末行模式）
+	vim 文件					## 打开文件
+	Esc 						## 进入命令模式
+	a，i，o						## 进入输入模式
+	:							## 进入末行模式
+命令模式快捷键：
+	yy							## 复制光标所在整行
+	dd							## 删除（剪切）光标所在整行
+	5yy							## 复制从光标开始的5行
+	5dd							## 删除（剪切）从光标开始的5行
+	p							## 将剪切板内容粘贴到光标处
+	
+	u							## 撤销
+	
+	/字符串						## 从上至下搜索字符串
+	?字符串						## 从下至上搜索字符串
+	n							## 搜索下一个字符串
+	N							## 搜索上一个字符串
+末行模式快捷键：
+	:w							## 保存
+	:q							## 退出
+	:wq							## 保存并退出
+	:wq!						## 强制保存并退出
+	:q!							## 强制退出，不保存修改
+	:set nu						## 显示行号
+	:set nonu					## 不显示行号
+	:整数						## 跳转至改行
+	:命令						## 执行该命令
+2.配置主机名称
+	hostname					## 查看主机名称
+	/etc/hostname				## 保存主机名称的文件
+3.配置网卡信息
+	/etc/sysconfig/network-scripts/	## 网卡配置文件所在目录
+	systemctl restart network		## 重启网卡
+	ping -c 10 -i 0.1 -W 1 47.99.200.140
+4.配置Yum仓库
+
+5.Shell脚本
+	echo $SHELL					## 查看当前Shell解释器
+	cat	/etc/shells				## 查看系统所有可用Shell解释器
+	
+	脚本内容包括：
+		脚本申明（#!）			## 用哪种Shell解释器
+		可执行语句				## 执行的具体命令
+		注释信息（#）
+	
+	脚本执行方法：
+		脚本文件路径：./Example.sh	## 需要为脚本设置可执行权限：chmod u+x Example.sh
+		sh 脚本文件路径：sh Example.sh
+		source 脚本文件路径：source Example.sh
+	
+	判断上一条命令是否执行成功:$?	## 0成功，非0失败
+	
+	脚本接收用户参数：命令名 参数1 参数2 参数3
+		$0 						## 当前执行Shell脚本的程序名
+		$1,$2,$3...				## 参数的位置变量
+		$#						## 参数的总个数
+		$*						## 所以位置变量的值
+	
+	脚本校验用户参数：[ 条件表达式 ]	## 测试语句，测试表达式是否成立，0成立，非0不成立
+		
+		[ 操作符 文件 ]					## 文件测试
+		-e, -f, -d, -r, -w, -x
+		
+		[ 整数1 操作符 整数2 ]			## 整数比较
+		-eq, -ne, -lt, -gt, -le, -ge
+		
+		[ 字符串1 操作符 字符串2 ]		## 字符串比较
+		=, !=, -z
+		
+		[ 表达式1 ] 操作符 [ 表达式2 ]	## 逻辑测试
+		&&, ||, ! 
+		
+	if语句：
+		[root@hzl local]# cat demo3.sh 
+		#!/bin/bash
+		read -p "please enter a number:" ENTER_NUMBER_1
+		if [ $ENTER_NUMBER_1 -eq 100 ]
+			then	echo "good!"
+		elif [ $ENTER_NUMBER_1 -eq 60 ]
+			then	echo "just so so!"
+		else
+			echo "not good!"
+		fi
+	
+	for语句：
+		[root@hzl ping_test]# cat ping.sh 
+		#IPLIST=`cat ips.txt`
+		#IPLIST=$(cat ips.txt)
+		for IP in `cat ips.txt`
+		do
+		ping -c 3 -i 0.1 -W 2 $IP >> ping_result.txt
+		done
+	
+	while语句：
+		[root@hzl local]# cat guess.sh 
+		PRICE=$(expr $RANDOM % 10)
+		TIMES=0
+		echo "猜一个0-9的整数！"
+		while true
+		do
+		read -p "请输入：" NUM
+		let TIMES++
+		if [ $NUM -eq $PRICE ]; then
+			echo "猜对了！"
+			echo "一共猜了$TIMES次!"
+			exit 0
+		elif [ $NUM -lt $PRICE ]; then
+			echo "小了！"
+		else
+			echo "大了！"
+		fi
+		done
+
+		[root@hzl while_test]# cat guess2.sh 
+		INIT=9
+		if [ $# -gt 0 ]; then
+			INIT=$1
+		fi
+		PRICE=$(expr $RANDOM % $(expr $INIT + 1))
+		TIMES=0
+		echo "猜一个0-$INIT的整数！"
+
+	case语句：
+		[root@hzl case_test]# cat case.sh 
+		read -p "请输入一个字符：" CHAR
+		case "$CHAR" in
+		[a-z]|[A-Z])
+		echo "你输入的是字母！"
+		;;
+		[0-9])
+		echo "你输入的是数字！"
+		;;
+		*)
+		echo "你输入的是其他字符！"
+		esac
+
+6.计划任务服务
+	at 时间				## 创建一次性任务，Ctrl+d，保存退出
+	atq/at -l			## 查看任务列表
+	atrm 序号			## 删除任务
+	at -c 序号			## 预览任务与设置环境
+	
+	crontab -e， crontab -l， crontab -r

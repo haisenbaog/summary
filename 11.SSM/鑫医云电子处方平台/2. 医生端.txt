@@ -1,0 +1,60 @@
+二、 医生端
+
+skill：
+
+
+business：
+	1. 医生接诊记录sql：
+		SELECT
+			record.start_time,
+			record.inquiry_code,
+			record.clinical_type,
+			record.oppsite_type,
+			record.clinical_status,
+			IFNULL(DATE_FORMAT(TIMEDIFF(record.end_time,record.start_time),'%H小时%i分钟%s秒'),'00小时00分钟00秒') time,
+			record.prescription_code,
+			record.oppsite_yx_account,
+			store.`code` store_code,
+			store.`name` store_name,
+			employee.`name` employee_name,
+			CASE WHEN record.oppsite_type = 1 THEN patient.`name`  ELSE NULL END patient_name,
+			CASE WHEN record.oppsite_type = 1 THEN patient.phone_num  ELSE NULL END patient_tel
+		FROM
+			biz_doctor_clinical_record record
+		LEFT JOIN patient_info patient ON record.oppsite_id = patient.id
+		LEFT JOIN store_base_employee employee ON record.emp_id = employee.id
+		LEFT JOIN store_base_info store ON employee.store_id = store.id
+		WHERE
+			record.doctor_id = #{doctorId}
+		AND record.clinical_status IN (0, 1, 2)
+	2. 患者历史处方sql：
+		SELECT
+			info.`code`,
+			DATE(info.create_time) date,
+			info.main_suit,
+			info.primary_diagnosis,
+			info.diagnosis_idea
+		FROM
+			biz_prescription_info info
+		WHERE
+			info.patient_tel = #{patientTel}
+		AND info.patient_name = #{patientName}
+
+	  <resultMap type="com.essence.prescript.res.doctor.GetPatientPrescriptionHistoryRes" id="DoctorGetPatientPrescriptionHistoryResultMap">
+		<result column="date" property="date" />
+		<result column="main_suit" property="mainSuit" />
+		<result column="primary_diagnosis" property="primaryDiagnosis" />
+		<result column="diagnosis_idea" property="diagnosisIdea" />
+		<collection property="detailList" 
+			ofType="com.essence.prescript.res.doctor.GetPatientPrescriptionHistoryResDetail"
+			select="doctorGetPatientPrescriptionHistoryDetail" 
+			javaType="java.util.List" 
+			column="{code = code}">
+		</collection>
+	  </resultMap>
+
+docking：
+		
+		
+question：
+	1. 分页插件

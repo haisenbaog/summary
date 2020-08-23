@@ -1,0 +1,147 @@
+日志框架
+
+日志接口(slf4j)
+slf4j是对所有日志框架制定的一种规范、标准、接口
+
+日志实现(log4j、logback、log4j2)
+log4j是apache实现的一个开源日志组件
+logback同样是由log4j的作者设计完成的，拥有更好的特性，用来取代log4j的一个日志框架，是slf4j的原生实现
+log4j2是log4j 1.x和logback的改进版，据说采用了一些新技术（无锁异步、等等），使得日志的吞吐量、性能比log4j 1.x提高10倍，并解决了一些死锁的bug，而且配置更加简单灵活。
+
+为什么需要日志接口，直接使用具体的实现不就行了吗？
+接口用于定制规范，可以有多个实现，使用时是面向接口的(导入的包都是slf4j的包而不是具体某个日志框架中的包)，即直接和接口交互，不直接使用实现，所以可以任意的更换实现而不用更改代码中的日志相关代码。
+
+比如：slf4j定义了一套日志接口，项目中使用的日志框架是logback，开发中调用的所有接口都是slf4j的，不直接使用logback，调用是 自己的工程调用slf4j的接口，slf4j的接口去调用logback的实现，可以看到整个过程应用程序并没有直接使用logback，当项目需要更换更加优秀的日志框架时(如log4j2)只需要引入Log4j2的jar和Log4j2对应的配置文件即可，完全不用更改Java代码中的日志相关的代码logger.info(“xxx”)，也不用修改日志相关的类的导入的包(import org.slf4j.Logger; import org.slf4j.LoggerFactory;)
+
+使用日志接口便于更换为其他日志框架
+log4j、logback、log4j2都是一种日志具体实现框架，所以既可以单独使用也可以结合slf4j一起搭配使用。
+====================================================================================================
+对于log4j2配置文件的理解
+
+配置文件结构:
+Appdenders部分
+	Appender
+		Filter
+		Layout
+		Policies
+		Strategy
+Loggers部分
+	Logger
+	RootLogger
+	
+对于Appender的理解:
+
+简单说Appender就是一个管道，定义了日志内容的去向(保存位置)。
+
+配置一个或者多个Filter，Filter的过滤机制和Servlet的Filter有些差别，下文会进行说明。
+
+配置Layout来控制日志信息的输出格式。
+
+配置Policies以控制日志何时(When)进行滚动。
+
+配置Strategy以控制日志如何(How)进行滚动。
+
+对于Logger的理解:
+
+简单说Logger就是一个路由器，指定类、包中的日志信息流向哪个管道，以及控制他们的流量(日志级别)
+====================================================================================================
+
+Appender的常用的实现类有：
+
+ConsoleAppender(Console)
+FileAppender(File)
+RollingFileAppender(RollingFile)
+RandomAccessFileAppender(RandomAccessFile)
+RollingRandomAccessFileAppender(RollingRandomAccessFile)
+
+
+ConsoleAppender(Console)
+该实现类会把日志输出到控制台中。
+它有两种输出方式：
+SYSTEM_OUT(System.out)
+SYSTEM_ERR(System.err)
+如果不配置，默认使用SYSTEM_OUT进行输出。括号中是调用的方法。
+
+
+FileAppender(File)
+RandomAccessFileAppender(RandomAccessFile)
+相同点：写入日志信息到文件
+不同点：使用的I/O实现类不同，前者使用FileOutputStream，后者使用RandomAccessFile。
+官方文档说是在bufferedIO=true(默认是true)的情况下后者比前者性能提升20% ~ 200%，不明觉厉，就用后者吧。
+
+
+RollingFileAppender(RollingFile)
+RollingRandomAccessFileAppender(RollingRandomAccessFile)
+这一对之间的区别与上一对之间的区别是一样的。
+上一对的实现类不能进行日志滚动，所谓日志滚动就是当达到设定的条件后，日志文件进行切分。
+比如：工程师想让系统中的日志按日进行切分，并且按月归档。
+
+
+Filters
+Filters决定日志事件能否被输出。过滤条件有三个值：ACCEPT(接受)，DENY(拒绝)，NEUTRAL(中立)。
+常用的Filter实现类有：
+LevelRangeFilter
+TimeFilter
+ThresholdFilter
+log4j2中的过滤器ACCEPT和DENY之后，后续的过滤器就不会执行了，只有在NEUTRAL的时候才会执行后续的过滤器。
+
+
+PatternLayout
+这是常用的日志格式化类，其它日志格式化类很少用。
+关于其它日志类，可以打开PatternLayout类，找到其父类AbstractStringLayout, 看父类的实现类有哪些。
+
+
+Policy & Strategy
+上文也说了，Policy是用来控制日志文件何时(When)进行滚动的；Strategy是用来控制日志文件如何(How)进行滚动的。
+如果配置的是RollingFile或RollingRandomAccessFile，则必须配置一个Policy。
+
+
+Policy常用的实现类:
+SizeBasedTriggeringPolicy
+CronTriggeringPolicy
+TimeBasedTriggeringPolicy
+
+SizeBasedTriggeringPolicy
+根据日志文件的大小进行滚动。
+<SizeBasedTriggeringPolicy size="10MB"/>
+单位有：KB，MB，GB
+
+CronTriggeringPolicy
+使用Cron表达式进行日志滚动，很灵活。
+<CronTriggeringPolicy schedule="0/5 * * * * ?" />
+
+TimeBasedTriggeringPolicy
+这个滚动策略依赖于filePattern中配置的最具体的时间单位，根据最具体的时间单位进行滚动。
+这种方式比较简洁。CronTriggeringPolicy策略更强大。
+
+
+Strategy常用的实现类
+DefaultRolloverStrategy
+DirectWriteRolloverStrategy
+这两个Strategy都是控制如何进行日志滚动的，至于他们的区别我还是不太明白，大佬解释一下吧。
+平时大部分用DefaultRolloverStrategy就可以了。
+
+
+====================================================================================================
+Logger
+Logger部分就比较简单了，分为两个Logger:
+Root(必须配置)
+Logger
+注意：Logger中也可以加过滤器的哟~
+
+
+比较重要的问题: 日志重复打印
+如果Root中的日志包含了Logger中的日志信息，并且AppenderRef是一样的配置，则日志会打印两次。
+注意：有两个条件
+Root中的日志包含了Logger中的日志信息
+且AppenderRef是一样的配置
+这时候我们需要使用一个Logger的属性来解决，那就是additivity，其默认值为true，需要配置为false。
+
+
+
+
+
+
+
+
+

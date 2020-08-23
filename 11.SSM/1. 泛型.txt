@@ -1,0 +1,87 @@
+1. 概念：泛型就是类型参数化，处理的数据类型不是固定的，而是可以作为参数传入。
+2. 原理：泛型通过擦除实现，属于java编译器中的概念。对于泛型类，Java编译器会将泛型代码转换为普通的非泛型代码，将类型参数T擦除替换为Object，插入必要的强制类型转换。Java虚拟机执行的时候并不知道泛型这回事。
+3. 好处：更好的安全性，更好的可读性。泛型将数据结构和算法与数据类型相分离，使得同一套数据结构和算法能够应用于各种数据类型，而且可以保证类型安全，提高可读性。
+4. 使用：泛型类（容器类等）、泛型方法（一个方法是不是泛型方法与其所在类是不是泛型类没有关系）、泛型接口。
+5. 类型参数的限定：通过extends关键字，限定类型参数必须为给定上界类型或其子类。上界可以为类、接口、其他类型参数。
+	public static <T extends Comparable<T>> T max(T[] arr){
+		T max = arr[0];
+		for(int i=1; i<arr.length; i++){
+			if(arr[i].compareTo(max)>0){
+				max = arr[i];
+			}
+		}
+		return max;
+	}
+	<T extends Comparable<T>>，递归类型限定，T表示一种数据类型，必须实现Comparable接口，且必须可以和T类型的元素进行比较。
+	
+	List<Number> list1 = new ArrayList<>();
+	List<Integer> list2 = new ArrayList<>();
+	list1 = list2;	//	编译错误
+6. 通配符：？、<? extends E>
+	类型参数写法：	public static <T> int indexOf(DynamicArray<T> arr, Object elm);
+	通配符写法：	public static int indexOf(DynamicArray<?> arr, Object elm);		//	<?>表示无限定通配符
+	
+	类型参数写法：	public <T extends E> void addAll(DynamicArray<T> c);
+	通配符写法：	public void addAll(DynamicArray<? extends E> c);				// 	<? extends E>表示有限定通配符
+	
+7. 类型参数与通配符对比
+	<T extends E>用于定义类型参数，它申明了一个类型参数T，可放在泛型类定义中类名后面、泛型方法返回值前面。
+	<? extends E>用于实例化类型参数，它用于实例化泛型变量中的类型参数，只是这个具体类型是未知的，只知道它是E或E的某个子类型。
+
+	通配符能做的，用类型参数都能做；
+	通配符形式可以减少类型参数，形式上更为简单，可读性也更好，所以能用通配符就用通配符；
+	如果类型参数之间有依赖关系，或者返回值依赖类型参数，或者需要写操作，则只能用类型参数；
+	通配符形式和类型参数旺旺配合使用。
+	
+	List<Number> list1 = new ArrayList<>();
+	List<Integer> list2 = new ArrayList<>();
+
+	list1 = list2;                                        // 编译不通过
+
+								
+	List<T extends Number> list3 = new ArrayList<>();     // 编译不通过
+	List<? extends Number> list4 = new ArrayList<>();     // 编译通过
+	List<?> list5 = new ArrayList<>();                    // 编译通过
+
+	list5 = list2;                                        // 编译通过
+	Object a = list5.get(0);                              // 编译通过
+	Integer b = list5.get(0);                             // 编译不通过
+	list5.add(1);                                         // 编译不通过
+	
+	通配符形式只能读不能写，下面两行set语句都是非法的：
+	public static void swap(DynamicArray<?> arr, int i, int j){
+		Object tmp = arr.get(i);
+		arr.set(i, arr.get(j));
+		arr.set(j, tmp);
+	}
+
+	可借助带类型参数的泛型方法解决(Java容器类中就有类似的用法，公共API通配符形式，形式更简单，但内部调用带类型参数的方法)：
+	public static void swap(DynamicArray<?> arr, int i, int j){
+		swapInternal(arr, i, j);
+	}	
+	private static <T> void swapInternal(DynamicArray<T> arr, int i, int j){
+		T tmp = arr.get(i);
+		arr.set(i, arr.get(j));
+		arr.set(j, tmp);
+	}
+
+8. 超类型通配符：<? super E>, 表示E的某个父类。有了它，就可以更灵活的写入了
+	public static <T extends Comparable<? super T>> T max(DynamicArray<T> arr);
+	
+9. 通配符总结：？、<? extends E>、<? super E>
+	1. 它们的目的都是为了使方法接口更为灵活，可以接受更为广泛的类型；
+	2. <? super E>用于灵活写入或比较，使得对象可以写入父类型的容器，使得父类型的比较方法可以应用于子类对象，他不能被类型参数形式替代；
+	3. <? extends E>和？用于灵活读取，使得方法可以读取E或E的任意子类型的容器对象，它们可以用类型参数的形式代替，但通配符形式更为简洁。
+
+10. 不能通过类型参数创建对象：
+	非法写法：T elm = new T(); T[] arr = new T[10];
+	可以借助Java的反射机制：
+	public static <T> T create(Class<T> type){
+		try {
+			return type.newInstance();
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+

@@ -1,0 +1,125 @@
+并发，多线程，ThreadLocal
+
+一、 线程池
+
+	接口与实现：
+		public interface Executor {}
+		public interface ExecutorService extends Executor {}
+		public abstract class AbstractExecutorService implements ExecutorService {}
+		
+		public class ThreadPoolExecutor extends AbstractExecutorService {
+			public ThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue,
+									  ThreadFactory threadFactory, RejectedExecutionHandler handler) {	// ... }			
+		}
+
+	工具类：
+		public class Executors {
+			public static ExecutorService newFixedThreadPool(int nThreads) {
+				return new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+			}
+			// ...
+		}
+
+二、 ThreadLocal
+	1. 主要方法：
+	public void set(T value)
+	public T get()
+	protected T initialValue()
+	public void remove()
+	
+	2. 方法实现：
+	public void set(T value) {
+		 Thread t = Thread.currentThread();
+		 ThreadLocalMap map = getMap(t);
+		 if(map != null)
+			map.set(this, value);
+		 else
+			createMap(t, value);
+	}
+	ThreadLocalMap getMap(Thread t) {
+		return t.threadLocals;
+	}
+	void createMap(Thread t, T firstValue) {
+		t.threadLocals = new ThreadLocalMap(this, firstValue);
+	}
+
+	public T get() {
+		 Thread t = Thread.currentThread();
+		 ThreadLocalMap map = getMap(t);
+		 if(map != null) {
+			 ThreadLocalMap.Entry e = map.getEntry(this);
+			 if(e != null)
+				return (T)e.value;
+		 }
+		 return setInitialValue();
+	}
+
+	private T setInitialValue() {
+		 T value = initialValue();
+		 Thread t = Thread.currentThread();
+		 ThreadLocalMap map = getMap(t);
+		 if(map != null)
+			map.set(this, value);
+		 else
+			createMap(t, value);
+		 return value;
+	}
+	
+	3. 使用demo
+	public class ThreadLocalBasic {
+	 static ThreadLocal<Integer> local = new ThreadLocal<>();
+	 
+	 public static void main(String[] args) throws InterruptedException {
+		 Thread child = new Thread() {
+			 @Override
+			 public void run() {
+				 System.out.println("child thread initial: " + local.get());
+				 local.set(200);
+				 System.out.println("child thread final: " + local.get());
+			 }
+		 };
+		 local.set(100);
+		 child.start();
+		 child.join();
+		 System.out.println("main thread final: " + local.get());
+	 }
+	}
+
+	4. 使每个线程对同一变量有自己独立的副本，是实现线程安全、减少竞争的一种方案。
+	adLocalDateFormat {
+		 static ThreadLocal<DateFormat> sdf = new ThreadLocal<DateFormat>() {
+			 @Override
+			 protected DateFormat initialValue() {
+			 return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			 }
+		 };
+		 public static String date2String(Date date) {
+			return sdf.get().format(date);
+		 }
+		 public static Date string2Date(String str) throws ParseException {
+			return sdf.get().parse(str);
+		 }
+	}
+
+	5. 经常用于存储上下文信息，避免在不同代码间来回传递，简化代码
+	class RequestContext {
+		 public static class Request { //... };
+		 
+		 private static ThreadLocal<String> localUserId = new ThreadLocal<>();
+		 private static ThreadLocal<Request> localRequest = new ThreadLocal<>();
+		 
+		 public static String getCurrentUserId() {
+			return localUserId.get();
+		 }
+		 public static void setCurrentUserId(String userId) {
+			localUserId.set(userId);
+		 }
+		 public static Request getCurrentRequest() {
+			return localRequest.get();
+		 }
+		 public static void setCurrentRequest(Request request) {
+			localRequest.set(request);
+		 }
+	}
+
+	

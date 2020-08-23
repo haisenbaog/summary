@@ -1,0 +1,21 @@
+version: '2'
+services:
+  appname:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 172.19.25.218
+      KAFKA_ZOOKEEPER_CONNECT: appname:2181         #appname(只对应一个容器时)/容器名称
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+# ================================================
+#appname：自定义应用名称
+#
+#docker-compose up --scale appname=n -d。通过指定appname=n，创建appname的n个副本，即n个容器。
+#注意：1. ports不能指定宿主机端口，要让系统自动绑定。 2. 不能通过container_name: my-web-container，指定容器名称，要让系统自动生成。

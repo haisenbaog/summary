@@ -1,0 +1,420 @@
+一、springmvc
+
+	1. 执行流程
+		https://blog.csdn.net/litianxiang_kaola/article/details/79169148
+
+		（1）首先用户发送请求——>DispatcherServlet，前端控制器收到请求后自己不进行处理，而是委托给其他的解析器进行处理，作为统一访问点，进行全局的流程控制；
+
+		（2）DispatcherServlet——>HandlerMapping，处理器映射器将会把请求映射为HandlerExecutionChain对象（包含一个Handler处理器对象、多个HandlerInterceptor拦截器）对象；
+
+		（3）DispatcherServlet——>HandlerAdapter，处理器适配器将会把处理器包装为适配器，从而支持多种类型的处理器，即适配器设计模式的应用，从而很容易支持很多类型的处理器；
+
+		（4）HandlerAdapter——>调用处理器相应功能处理方法，并返回一个ModelAndView对象（包含模型数据、逻辑视图名）；
+
+		（5）ModelAndView对象（Model部分是业务对象返回的模型数据，View部分为逻辑视图名）——> ViewResolver， 视图解析器将把逻辑视图名解析为具体的View；
+
+		（6）View——>渲染，View会根据传进来的Model模型数据进行渲染，此处的Model实际是一个Map数据结构；
+
+		（7）返回控制权给DispatcherServlet，由DispatcherServlet返回响应给用户，到此一个流程结束。
+
+	2. 常用注解
+		@Controller
+			负责注册一个bean 到spring 上下文中
+		@RequestMapping
+			注解为控制器指定可以处理哪些 URL 请求
+		@RequestBody
+			该注解用于读取Request请求的body部分数据，使用系统默认配置的HttpMessageConverter进行解析，然后把相应的数据绑定到要返回的对象上，再把HttpMessageConverter返回的对象数据绑定到controller中方法的参数上
+		@ResponseBody
+			该注解用于将Controller的方法返回的对象，通过适当的HttpMessageConverter转换为指定格式后，写入到Response对象的body数据区
+		@RequestParam
+			在处理方法入参处使用 @RequestParam 可以把请求参 数传递给请求方法
+		@PathVariable
+			restfull风格，绑定 URL 占位符到入参
+		@ExceptionHandler
+			注解到方法上，出现异常时会执行该方法
+		@ControllerAdvice
+			使一个Contoller成为全局的异常处理类，类中用@ExceptionHandler方法注解的方法可以处理所有Controller发生的异常
+		自动匹配参数（根据参数名）
+		自动封装对象
+		
+	3. 异常处理
+		1. 局部异常处理，controller内
+			@ExceptionHandler
+			public ModelAndView exceptionHandler(Exception ex){
+				ModelAndView mv = new ModelAndView("error");
+				mv.addObject("exception", ex);
+				System.out.println("in testExceptionHandler");
+				return mv;
+			}
+		
+		2. 全局异常处理，所有controller
+			@ControllerAdvice
+			public class testControllerAdvice {
+				@ExceptionHandler
+				public ModelAndView exceptionHandler(Exception ex){
+					ModelAndView mv = new ModelAndView("error");
+					mv.addObject("exception", ex);
+					System.out.println("in testControllerAdvice");
+					return mv;
+				}
+			}
+			
+			@ControllerAdvice
+			public class AllExceptionHandler {
+				private String defaultErrorFormat = "服务器内部错误: %s";
+				@ExceptionHandler(value = {Exception.class})
+				public ResponseEntity<Object> handleOtherExceptions(final Exception ex, final WebRequest req) {
+					ResultResponse<String> response = new ResultResponse<>(PageMsg.FAILED, String.format(defaultErrorFormat, ex.getMessage()));
+					return new ResponseEntity<>(response, HttpStatus.OK);
+				}
+			}
+		
+		3. 全局异常处理，servlet配置文件中配置（error为错误页面）
+			<bean class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver">
+				<property name="exceptionMappings">
+					<props>
+						<prop key="java.lang.ArithmeticException">error</prop>
+					</props>
+				</property>
+			</bean>
+			
+	4. 拦截器，过滤器
+		1. 实现HandlerInterceptor接口
+		public class MyInterceptor implements HandlerInterceptor {
+			@Override
+			public boolean preHandle(HttpServletRequest arg0, HttpServletResponse arg1, Object arg2) throws Exception {
+				System.out.println("preHandle");
+				return true;
+			}
+			@Override
+			public void postHandle(HttpServletRequest arg0, HttpServletResponse arg1, Object arg2, ModelAndView arg3) throws Exception {
+				System.out.println("postHandle");
+			}
+			@Override
+			public void afterCompletion(HttpServletRequest arg0, HttpServletResponse arg1, Object arg2, Exception arg3) throws Exception {
+				System.out.println("afterCompletion");
+			}
+		}
+		2. servlet配置文件中配置
+		<mvc:interceptors>
+			<mvc:interceptor>
+				<mvc:mapping path="/mvc/**"/>
+				<bean class="test.SpringMVC.Interceptor.MyInterceptor">
+					<property name="mapping">
+						<list>
+							<value>/doctor/rest</value>
+							<value>/doctor/work</value>
+						</list>
+					</property>				
+				</bean>
+			</mvc:interceptor>        
+		</mvc:interceptors>
+
+	5. 文件上传
+		<bean id="multipartResolver"
+			class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+			<property name="maxUploadSize" value="52428800" />
+			<property name="maxInMemorySize" value="1" />
+		</bean>
+		
+		@RequestMapping(value = "/uploadPicture")
+		public ResultResponse<Map<String, String>> uploadPicture(MultipartFile picture, Integer imgType) { }
+		
+		public String uploadFile(MultipartFile multipartFile, FtpDirectoryTable firstDirName, FtpDirectoryField secondDirName, Boolean isTransparent) throws PrescriptException{
+			InputStream is;
+			try {
+				is = multipartFile.getInputStream();
+			} catch (Exception e) {
+				throw new PrescriptException("创建文件流失败");
+			}
+			String fileOriginalName = multipartFile.getOriginalFilename();
+			if(StringUtils.isEmpty(fileOriginalName)){
+				throw new PrescriptException("原文件名为空");
+			}
+			String extName = fileOriginalName.substring(fileOriginalName.lastIndexOf("."));
+			return uploadFile(is, firstDirName.getContent(), secondDirName.getContent(), extName, isTransparent);
+		}
+	
+		boolean success = ftpClient.storeFile(pathToSave, inStream);
+		
+	6. restfull
+		@RequestMapping(value="/user/{id}",method=RequestMethod.GET)
+		public String get(@PathVariable("id") Integer id){ }
+		
+		@RequestMapping(value="/user/{id}",method=RequestMethod.POST)
+		public String post(@PathVariable("id") Integer id){ }		
+	
+	7. 与struts2对比
+	
+	8. 类型转换器,实现接口Converter，再进行配置。
+		public interface Converter<S,T> {
+			T convert(S source);
+		}
+
+二、spring
+	1. IOC：DI容器。（反射+注解）
+	
+	2. spring注解
+		@Component（"id"）
+		@Controller
+		@Service
+		@Repository
+		
+		@Value("普通值")
+		@Autowired
+		@Resource（"id"）
+		
+		@PostConstruct(Constructor >> @Autowired >> @PostConstruct)
+		@PreDestroy
+	
+	3. AOP结构
+		file:///C:/Users/Administrator/Desktop/AOP-jiegou.png
+	4. AOP原理
+		4.1 JDK动态代理
+		public class MyBeanFactory {
+
+			public static UserService createService(){
+				//1 目标类
+				final UserService userService = new UserServiceImpl();
+				//2 切面类
+				final MyAspect myAspect = new MyAspect();
+				//3 代理类：将目标类（切入点）和 切面类（通知） 结合 --> 切面。InvocationHandler  处理类，接口，必须进行实现类，一般采用匿名内部
+
+				UserService proxService = (UserService)Proxy.newProxyInstance(MyBeanFactory.class.getClassLoader(), userService.getClass().getInterfaces(), new InvocationHandler() {
+					@Override
+					public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+						//前执行
+						myAspect.before();
+						//执行目标类的方法
+						Object obj = method.invoke(userService, args);
+						//后执行
+						myAspect.after();
+						return obj;
+					}
+				});
+				
+				return proxService;
+			}
+
+		}
+
+		4.2 cglib字节码增强
+		public class MyBeanFactory {
+
+			public static UserServiceImpl createService(){
+				//1 目标类
+				final UserServiceImpl userService = new UserServiceImpl();
+				//2 切面类
+				final MyAspect myAspect = new MyAspect();
+				//3.代理类 ，采用cglib，底层创建目标类的子类
+				//3.1 核心类
+				Enhancer enhancer = new Enhancer();
+				//3.2 确定父类
+				enhancer.setSuperclass(userService.getClass());
+				/* 3.3 设置回调函数 , MethodInterceptor接口 等效 jdk InvocationHandler接口
+				 *  	intercept() 等效 jdk  invoke()
+				 *      参数1、参数2、参数3：以invoke一样
+				 *      参数4：methodProxy 方法的代理
+				 */
+				enhancer.setCallback(new MethodInterceptor(){
+					@Override
+					public Object intercept(Object proxy, Method method, Object[] args, MethodProxy methodProxy) throws Throwable {
+						myAspect.before();
+
+						//执行目标类的方法
+						Object obj = method.invoke(userService, args);
+						// * 执行代理类的父类 ，执行目标类 （目标类和代理类 父子关系）
+						methodProxy.invokeSuper(proxy, args);
+
+						myAspect.after();
+
+						return obj;
+					}
+				});
+				//3.4 创建代理
+				UserServiceImpl proxService = (UserServiceImpl) enhancer.create();
+
+				return proxService;
+			}
+		}
+
+	5. AOP应用：权限控制，日志记录，性能监控，事务处理。（反射+注解+动态代理）
+		@Component
+		@Aspect
+		public class HelloWordAspect {
+			@Before(value="execution(* test.Spring.AOP.HelloWord.sayHello(..))")
+			public void beforeMethod(JoinPoint jp){
+				String methodName = jp.getSignature().getName();
+				System.out.println(methodName);
+				System.out.println("before method execute,args are "+Arrays.toString(jp.getArgs()));
+			}
+
+			@After("execution(* test.Spring.AOP.HelloWord.sayHello(..))")
+			public void afterMethod(JoinPoint jp){
+				System.out.println("after method execute,args are "+Arrays.toString(jp.getArgs()));
+			}
+			
+			@AfterThrowing(value="execution(* test.Spring.AOP.HelloWord.sayHello(..))",throwing="ex")
+			public void afterThrow(Exception ex){
+				System.out.println("afterThrow"+ex.getMessage());    
+			}
+			
+			@AfterReturning(value="execution(* test.Spring.AOP.HelloWord.sayHello(..))",returning="result")
+			public void afterReturn(Object result){
+				System.out.println("the result is "+result);
+			}
+		}
+
+		@Component
+		@Aspect
+		public class HelloWordAspectAround {
+			@Around(value="execution(* test.Spring.AOP.HelloWord.sayHello(..)))")
+			public Object aroundMethod(ProceedingJoinPoint pjp){
+				Object result = null;
+				String methodName = pjp.getSignature().getName();
+				try {
+					result = pjp.proceed();        
+					System.out.println("the result is "+result);
+				} catch (Throwable e) {
+					System.out.println("Exception occurs : "+e.getMessage());
+					throw new RuntimeException(e);
+				}
+				System.out.println(methodName+" end");
+				return result;
+			}
+		}
+
+		@Component
+		@Aspect
+		public class LogAspect {
+
+			@Reference
+			private IBaseLogService logService;
+
+			@Around("@annotation(logAnno)")
+			public Object saveLog(ProceedingJoinPoint joinPoint, LogAnno logAnno) {
+				BaseOperationLog log = new BaseOperationLog();
+				Object[] args = joinPoint.getArgs();
+				String tokenLocation = logAnno.tokenLocation();
+
+				log.setSystemType(logAnno.sysType());
+				log.setInvokeTime(new Date());
+				log.setMethod(joinPoint.getSignature().getName());
+				log.setMethodDesc(logAnno.value());
+
+				Stopwatch stopwatch = Stopwatch.createStarted();
+				Object re = null;
+				try {
+					re = joinPoint.proceed();
+				} catch (Throwable throwable) {
+					throwable.printStackTrace();
+				}
+				stopwatch.stop();
+				log.setRunTime(stopwatch.elapsedMillis());
+				log.setReturnValue(re == null ? null : JSON.toJSONString(re));
+				logService.insertLog(log);
+
+				return re;
+			}
+		}
+
+	6. spring事务的传播机制（7种传播机制）
+		PROPAGATION_REQUIRED，PROPAGATION_REQUIRES_NEW，PROPAGATION_NESTED（嵌套事务的应用：外部主事务，内部附事务）
+		注意:spring事务的实现原理是AOP，AOP的实现原理的动态代理。
+			1. 代理的是public，非final，非static的方法
+			2. 自调用问题，AOP失效，事务注解失效，因为调用的是真实对象而非代理对象。
+		获取代理对象的方法：
+			1. ApplicationContext ap =WebApplicationUtils.getWebApplicationContext(servletContextParam)；
+			2. ApplicationContext ap = new ClassPathXmlApplicationContext("applicationContext.xml");
+			3. 实现ApplicationContextAware接口
+				@Component
+				public class SpringContextHolder implements ApplicationContextAware {
+
+					private ApplicationContext applicationContext;
+					
+					@Override
+					public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+						this.applicationContext = applicationContext;
+					}
+
+					public ApplicationContext getContext() {
+						return applicationContext;
+					}
+				}
+		方式1要依赖Servlet容器，方式2实际只适合测试使用，方式1,2都有明显弊端。建议使用方式3。
+		
+		解决自调用问题其他方法：注入自己
+	
+
+	
+三、mybatis
+
+1. JDBC编程:注册驱动，获取连接，创建执行对象，编写sql，设置参数，执行sql，处理结果集，释放资源
+
+2. 概述：持久层框架，封装了复杂的jdbc操作，支持自定义sql、存储过程和高级映射。
+	通过注解或xml配置，获取statement对象；以对象的形式传递参数，支持ognl表达式；结果集通过映射封装到对象。
+
+3. 优点
+	支持动态sql。有丰富的标签，if，where等；
+	支持丰富的传参方式。简单参数，pojo，map，list等；
+	有强大的结果映射标签，resultMap。支持一对一查询、一对多查询。支持嵌套查询，支持嵌套封装。
+
+4. 嵌套查询的N+1问题
+	可能导致大量sql执行，可转换为嵌套结果封装
+	
+	延时加载
+
+5. 查询缓存
+	一级缓存，SqlSession级别。
+		默认开启:不需要pojo可序列化。相同的查询SQL，第二次以后直接从缓存中获取，一级缓存会在进行增、删、改操作时清除。
+	二级缓存，SqlSessionFactory级别。
+		手动使用:在Mapper.xml 用<cache/>标签或<cache-ref/>标签，一个namespace最多只能有一个Cache与其绑定。
+	
+	使用自定义二级缓存：
+	1. 实现Cache接口（可存在本地或redis等）
+	2. 配置：
+		<cache type="com.xxx.MyCache"> <property name="host" value="localhost"/> <cache/>
+	3. xml中使用：
+		<cache type="com.xxx.MyCache" size=1024> 或者<cache-ref namespace=""/>
+	
+	Cache接口：org.apache.ibatis.cache.Cache
+	public class MyCache implements Cache {
+	  private String id;
+	  private Map<Object, Object> cache = new HashMap<Object, Object>();	
+	  
+	  public PerpetualCache(String id) {
+		this.id = id;
+	  }
+
+	  public String getId() {}
+	  public int getSize() {}
+	  public void putObject(Object key, Object value) {}
+	  public Object getObject(Object key) {}
+	  public Object removeObject(Object key) {}
+	  public void clear() {}
+	  public ReadWriteLock getReadWriteLock() {}
+	}
+	
+5. 类型处理器typeHandlers。可自定义类型处理器来处理指定类型。 
+	1. 实现接口： org.apache.ibatis.type.TypeHandler
+	2. 继承类： 	  org.apache.ibatis.type.BaseTypeHandler
+	
+	1. 全局配置，mybatis.xml
+	<typeHandlers>
+        <typeHandler handler="xxx.MyTypeHandler"/>
+    </typeHandlers>
+	2. 局部配置，sql中
+	#{name,jdbcType=VARCHAR,typeHandler=xxx.MyTypeHandler}
+	<result column="name" jdbcType="VARCHAR" property="name" typeHandler="xxx.MyTypeHandler"/>
+
+7. 插件。可自定义插件。
+	实现接口：org.apache.ibatis.plugin.Interceptor
+	public interface Interceptor {
+	  Object intercept(Invocation invocation) throws Throwable;
+	  Object plugin(Object target);
+	  void setProperties(Properties properties);
+	}
+	
+	<plugins>
+		<plugin interceptor="xxx.MyPlugin"/>
+	</plugins>

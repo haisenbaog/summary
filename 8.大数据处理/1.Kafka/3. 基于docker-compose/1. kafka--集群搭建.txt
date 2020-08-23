@@ -1,0 +1,13 @@
+1. 安装docker
+
+2. 安装docker-compose
+
+3. 下载zookeeper镜像:
+	docker pull wurstmeister/zookeeper
+
+4. 下载kafka镜像:
+	docker pull wurstmeister/kafka
+
+5. 编辑docker-compose.yml
+	
+6. 运行docker-compose

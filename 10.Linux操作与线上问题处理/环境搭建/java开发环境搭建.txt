@@ -1,0 +1,38 @@
+1. 官网下载jdk
+  https://www.oracle.com/technetwork/java/javase/downloads/index.html
+  安装jdk、jre(可指定目录)
+  
+2. 配置环境变量(系统变量)
+  JAVA_HOME:jdk路径(bin目录上一级)
+  CLASSPATH:.;%JAVA_HOME%\lib;%JAVA_HOME%\lib\tools.jar
+  PATH:%JAVA_HOME%\bin;%JAVA_HOME%\jre\bin;
+  测试环境变量配置结果：命令窗口输入命令：java -version; javac; java;
+
+3. 官网下载eclipse
+  安装eclipse
+
+4. eclipse集成maven
+  官网下载maven，解压
+  配置环境变量：MAVEN_HOME:maven路径	PATH:%MAVEN_HOME%\bin\;
+  测试环境变量配置结果：命令窗口输入命令：mvn -v;
+  eclipse--window--perferences--maven--user settings
+  设置编码集utf-8
+  安装jetty插件
+
+5. 官网下载tomcat，解压
+  配置环境变量：CATALINA_HOME:tomcat路径	PATH:%CATALINA_HOME%\bin;
+
+6. 官网下载nginx，解压
+
+7. 官网下载zookeeper，解压（zookeeper需要jdk环境）
+  conf/zoo_sample.cfg重命名为：zoo.cfg
+  dataDir=指定目录（在zookeeper创建文件夹data）
+
+8. 官网下载mysql
+  安装mysql，msi格式（zip格式解压之后配置即可）
+
+9. 官网下载Navicat
+  安装navicat（试用14天）
+
+10. postman
+  

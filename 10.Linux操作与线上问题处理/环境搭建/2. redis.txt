@@ -1,0 +1,23 @@
+1.下载
+	wget http://download.redis.io/releases/redis-5.0.5.tar.gz
+2.解压
+	tar xzf redis-5.0.5.tar.gz
+3.编译
+	cd redis-5.0.5
+	make
+4.安装
+	cd src
+	make install
+5.配置
+	vim redis-5.0.5/redis.config
+	daemonize no			(no改为yes)
+	bind 127.0.0.1			(注释掉该行)
+	protected-mode yes		(yes改为no)
+	# requirepass foobared	（去掉注释，foobared改为密码）
+6. 启动服务
+	redis-server redis-5.0.5/redis.config
+7. 连接服务
+	redis-cli
+	auth 密码
+	shutdown	（关闭服务）
+	quit		（关闭连接）
