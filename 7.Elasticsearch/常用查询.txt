@@ -1,0 +1,15 @@
+GET bp_63568639007588352/_search
+{
+  "query": {
+    "nested": {
+      "path": "belong_wechat",
+      "query": {
+        "term": {
+          "belong_wechat.wechat_id": {
+            "value": "wxid_evree4azzeya12"
+          }
+        }
+      }
+    }
+  }
+}
