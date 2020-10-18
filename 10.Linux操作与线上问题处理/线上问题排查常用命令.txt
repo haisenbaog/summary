@@ -1,0 +1,80 @@
+1. top
+    top -n 10       更新次数为10次
+    top -d 10       更新周期为10秒
+    top -p 10       显示进程号为10的进程信息
+    top -c          显示完整命令
+
+2. free
+    free -m         查看内存
+    free -g         查看内存
+
+3. vmstat
+    vmstat 3 100    查看CPU和内存占用情况，3秒一次，100次
+===========================================================================
+1. grep
+    grep "jdk" file                在file中查询jdk
+    grep "jdk" -A 5 file           在file中查询jdk，及后5行
+    grep "jdk" -B 5 file           在file中查询jdk，及前5行
+    grep "jdk" -C 5 file           在file中查询jdk，及前后5行
+    grep "jdk|haha" -EA 5 file     在file中查询jdk或haha，及后5行
+    grep "jdk" -v file             在file中查询不包含jdk的内容
+    -i 忽略大小写
+    -c 仅显示找到的次数
+    -n 显示行号
+    -b 将可执行文件当做文本文件来搜索
+    grep "jdk" file1 file2          多文件查询
+
+2. awk
+    awk [-F|-f|-v] 'BEGIN{} //{command1; command2} END{}' file
+        [-F|-f|-v]      -F指定分隔符，-f调用脚本，-v定义变量
+        ''              引用代码块
+            BEGIN       初始化代码块，在对每一行进行处理之前，初始化代码，主要是引用全局变量，设置FS分隔符
+            //          匹配代码块，可以是字符串或正则表达式
+            {}          命令代码块，包含一条或多条命令
+            ;           多条命令使用分号分隔
+            END         结尾代码块，在对每一行进行处理之后再执行的代码块，主要是进行最终计算或输出结尾摘要信息
+    tips:
+        -F'[:#/]'       定义三个分隔符
+        ~               匹配
+        !~              不匹配
+        $0              表示整个当前行
+        $1              每行第一个字段
+        +               匹配时表示1个或1个以上
+        /[0-9][0-9]+/   两个或两个以上数字
+        /[0-9][0-9]*/   一个或一个以上数字
+
+        \t              制表符
+        \n              换行符
+        ==              等于
+        !=              不等于
+        &&              逻辑与
+        ||              逻辑或
+        FILENAME        文件名
+        NF              字段数量变量
+        NR              每行的记录号，多文件记录递增
+        FNR             与NR类似，不过多文件记录不递增，每个文件都从1开始
+        FS              BEGIN时定义分隔符
+        RS              输入的记录分隔符， 默认为换行符(即文本是按一行一行输入)
+        OFS             输出字段分隔符， 默认也是空格，可以改为制表符等
+        ORS             输出的记录分隔符，默认为换行符,即处理结果也是一行一行输出到屏幕
+
+[admin@dev-b2-m24 ~]$ sudo docker exec -it `sudo docker ps | grep whale | awk '{print $1}'` bash
+[root@4142c2b4048c /]#
+
+[admin@dev-b2-m24 ~]$ sudo docker ps | grep whale | awk '{print $1}'
+4142c2b4048c
+
+[admin@dev-b2-m24 ~]$ sudo docker ps | awk -F"  +" '/whale/{print $7}'
+qa-whale-8638
+
+[admin@dev-b2-m24 ~]$ sudo docker ps | awk -F"  +" '$7~/whale/{print $7}'
+qa-whale-8638
+===========================================================================
+
+44.ifconfig 网络配置命令
+
+ping ping目标主机
+telnet 远程ip 端口
+
+netstat -anp | grep 3366        查看特定端口3366的进程
+lsof -i:3366                    查看某个端口是否被占用
