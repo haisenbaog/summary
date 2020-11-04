@@ -78,3 +78,27 @@ telnet 远程ip 端口
 
 netstat -anp | grep 3366        查看特定端口3366的进程
 lsof -i:3366                    查看某个端口是否被占用
+===========================================================================
+获取dump文件
+
+[admin@prod-badger-service-m2 ~]$ sudo docker ps
+CONTAINER ID        IMAGE                                                       COMMAND                  CREATED             STATUS              PORTS                                                   NAMES
+262d5eaf8c7d        harbor.weierai.com/prod/badger:online-28534b1d-1022173712   "/bin/sh -c 'java ..."   12 days ago         Up 12 days          0.0.0.0:5005->5005/tcp, 0.0.0.0:8080->8080/tcp, 0.0.0.0:9090->9090/tcp   online-badger-8080
+[admin@prod-badger-service-m2 ~]$ sudo docker exec -it online-badger-8080 bash
+[root@262d5eaf8c7d /]# jps
+1 jar
+12412 Jps
+[root@262d5eaf8c7d /]# jmap -dump:format=b,file=badger-dump-online-20201104 1
+Dumping heap to /badger-dump-online-20201104 ...
+Heap dump file created
+[root@262d5eaf8c7d /]# tar -czf badger-dump-online-20201104.tar.gz badger-dump-online-20201104
+[root@262d5eaf8c7d /]# ls
+anaconda-post.log  arthas-boot.jar              badger-dump-online-20201104.tar.gz  dev  home  lib64  mnt  proc  run   srv  tmp  var
+app.jar            badger-dump-online-20201104  bin                                 etc  lib   media  opt  root  sbin  sys  usr
+[root@262d5eaf8c7d /]# exit
+exit
+[admin@prod-badger-service-m2 ~]$ cd /tmp
+[admin@prod-badger-service-m2 tmp]$ sudo docker cp 262d5eaf8c7d:badger-dump-online-20201104.tar.gz ./
+[admin@prod-badger-service-m2 tmp]$ ls
+badger-dump-online-20201104.tar.gz  consul-test  systemd-private-38476e7d38314b73b966061b4d6cee6f-chronyd.service-4KNAh6
+[admin@prod-badger-service-m2 tmp]$
