@@ -70,9 +70,9 @@ qa-whale-8638
 [admin@dev-b2-m24 ~]$ sudo docker ps | awk -F"  +" '$7~/whale/{print $7}'
 qa-whale-8638
 ===========================================================================
-
+999
 44.ifconfig 网络配置命令
-
+666
 ping ping目标主机
 telnet 远程ip 端口
 
