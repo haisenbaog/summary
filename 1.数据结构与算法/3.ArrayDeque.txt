@@ -1,0 +1,11 @@
+一、原理：动态循环数组
+    数组长度为2的幂次方，使用高效的位操作进行各种判断，进行对head、tail的维护
+1.核心成员变量：
+    transient Object[] elements; // non-private to simplify nested class access
+    transient int head;
+    transient int tail;
+
+    如果head == tail，则数组为空，size为0
+    如果tail > head，则第一个元素为elements【head】，最后一个为elements【tai-1】，长度为tai-head，元素索引从head到tail-1。
+    如果tail < head && tail == 0，则第一个元素为elements【head】，最后一个为elements【elements.length-1】，元素索引从head到elements.length-1。
+    如果tail < head && tail > 0，则会形成循环，第一个元素为elemens【head】，最后一个是 elements【tail-1】，元素索引从head到elements.length-1，然后再从0到tail-1。

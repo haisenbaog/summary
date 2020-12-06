@@ -1,0 +1,121 @@
+一、原理：动态数组
+1.核心成员变量
+    transient Object[] elementData;
+    private int size;
+    protected transient int modCount = 0; (java.util.AbstractList.modCount)
+
+二、共同点：迭代
+1.java.lang.Iterable：可迭代的，实现该接口可支持foreach语法
+    public interface Iterable<T> {
+        Iterator<T> iterator();
+
+        default void forEach(Consumer<? super T> action) {
+            Objects.requireNonNull(action);
+            for (T t : this) {
+                action.accept(t);
+            }
+        }
+
+        default Spliterator<T> spliterator() {
+            return Spliterators.spliteratorUnknownSize(iterator(), 0);
+        }
+    }
+
+    foreach语法糖：
+    ArrayList<Integer> intList = new ArrayList<Integer>();
+    for (Integer a : intList){
+        System.out.println(a);
+    }
+
+    Iterator<Integer> it = intList.iterator();
+    while(it.hasNext()){
+     System.out.println(it.next());
+    }
+
+2.java.util.Iterator：迭代器
+    public interface Iterator<E> {
+        boolean hasNext();
+
+        E next();
+
+        default void remove() {
+            throw new UnsupportedOperationException("remove");
+        }
+
+        default void forEachRemaining(Consumer<? super E> action) {
+            Objects.requireNonNull(action);
+            while (hasNext())
+                action.accept(next());
+        }
+    }
+
+
+3.java.util.ArrayList.Itr：迭代器实现
+    private class Itr implements Iterator<E> {
+        int cursor;       // index of next element to return
+        int lastRet = -1; // index of last element returned; -1 if no such
+        int expectedModCount = modCount;
+
+        Itr() {}
+
+        public boolean hasNext() {
+            return cursor != size;
+        }
+
+        @SuppressWarnings("unchecked")
+        public E next() {
+            checkForComodification();
+            int i = cursor;
+            if (i >= size)
+                throw new NoSuchElementException();
+            Object[] elementData = ArrayList.this.elementData;
+            if (i >= elementData.length)
+                throw new ConcurrentModificationException();
+            cursor = i + 1;
+            return (E) elementData[lastRet = i];
+        }
+
+        public void remove() {
+            if (lastRet < 0)
+                throw new IllegalStateException();
+            checkForComodification();
+
+            try {
+                ArrayList.this.remove(lastRet);
+                cursor = lastRet;
+                lastRet = -1;
+                expectedModCount = modCount;
+            } catch (IndexOutOfBoundsException ex) {
+                throw new ConcurrentModificationException();
+            }
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void forEachRemaining(Consumer<? super E> consumer) {
+            Objects.requireNonNull(consumer);
+            final int size = ArrayList.this.size;
+            int i = cursor;
+            if (i >= size) {
+                return;
+            }
+            final Object[] elementData = ArrayList.this.elementData;
+            if (i >= elementData.length) {
+                throw new ConcurrentModificationException();
+            }
+            while (i != size && modCount == expectedModCount) {
+                consumer.accept((E) elementData[i++]);
+            }
+            // update once at end of iteration to reduce heap write traffic
+            cursor = i;
+            lastRet = i - 1;
+            checkForComodification();
+        }
+
+        final void checkForComodification() {
+            if (modCount != expectedModCount)
+                throw new ConcurrentModificationException();
+        }
+    }
+
+三、java.util.RandomAccess：标记接口，可随机访问

@@ -1,0 +1,21 @@
+一、原理：双向链表
+1.核心成员变量
+    transient Node<E> first;
+    transient Node<E> last;
+    transient int size = 0;
+
+    private static class Node<E> {
+        E item;
+        Node<E> next;
+        Node<E> prev;
+
+        Node(Node<E> prev, E element, Node<E> next) {
+            this.item = element;
+            this.next = next;
+            this.prev = prev;
+        }
+    }
+
+2.实现了队列(Queue)、双端队列(Deque)、栈(Deque)的语义
+    java.util.Queue
+    java.util.Deque (public interface Deque<E> extends Queue<E>)
