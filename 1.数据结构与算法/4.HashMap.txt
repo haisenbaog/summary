@@ -1,0 +1,22 @@
+一、原理：动态数组，元素指向单向链表
+1.核心成员变量
+    transient Node<K,V>[] table;
+    transient int size;
+    int threshold;
+    final float loadFactor;
+    transient int modCount;
+    transient Set<Map.Entry<K,V>> entrySet;
+
+    static class Node<K,V> implements Map.Entry<K,V> {
+        final int hash;
+        final K key;
+        V value;
+        Node<K,V> next;
+
+        Node(int hash, K key, V value, Node<K,V> next) {
+            this.hash = hash;
+            this.key = key;
+            this.value = value;
+            this.next = next;
+        }
+    }
