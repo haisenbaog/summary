@@ -1,14 +1,22 @@
-1. 防火墙与防火墙管理工具
+防火墙与防火墙管理工具
 	netfilter							## 内核中的网络过滤器，实现真正的防火墙功能
 	iptables服务、firewalld服务			## 定义防火墙规则的防火墙管理工具
-	
+
+1. Firewalld防火墙维护和状态查询
+    systemctl start firewalld		    ## 启动firewalld
+    systemctl stop firewalld		    ## 停止firewalld
+    systemctl status firewalld	        ## 看看运行状态
+    systemctl enable firewalld	        ## 设置firewalld为开机自启动
+    systemctl disable firewalld	        ## 设置firewalld开启不自启
+
 2. firewalld
 	特点：拥有运行时配置与永久配置选项，支持动态更新，区域概念zone定义网络连接的可信等级
 	zone：trusted，home，internal，work，public，external，dmz，block，drop		默认区域：public
 	firewall-cmd，常用命令参数：
-		--add-service=服务名			## 默认区域允许该服务的流量
+	    --state                         ## 查看运行状态
+		--add-service=服务名			    ## 默认区域允许该服务的流量
 		--add-port=端口号/协议			## 默认区域允许该端口的流量
-		--remove-service=服务名		## 默认区域不再允许该服务的流量
+		--remove-service=服务名		    ## 默认区域不再允许该服务的流量
 		--remove-port=端口号/协议		## 默认区域不再允许该端口的流量
 		--reload						## 重启防火墙
 		--list-ports					## 开放的端口
