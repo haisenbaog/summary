@@ -1,0 +1,184 @@
+一、sun.misc.Unsafe
+    public final class Unsafe {
+    1.乐观锁
+        // 内存可见性
+        public native Object getObjectVolatile(Object var1, long var2);
+        public native void putObjectVolatile(Object var1, long var2, Object var4);
+        public native int getIntVolatile(Object var1, long var2);
+        public native void putIntVolatile(Object var1, long var2, int var4);
+
+        // CAS更新：冲突检测式更新，无冲突则更新，有冲突则不更新（乐观锁）。
+        // 计算机操作系统在硬件上，一般都直接支持CAS指令，Java的实现会利用这些特殊指令。
+        public final native boolean compareAndSwapObject(Object var1, long var2, Object var4, Object var5);
+        public final native boolean compareAndSwapInt(Object var1, long var2, int var4, int var5);
+        public final native boolean compareAndSwapLong(Object var1, long var2, long var4, long var6);
+
+        // 假定更新冲突比较少，出现冲突时就重试，不阻塞所以无上下文切换。
+        public final int getAndSetInt(Object var1, long var2, int var4) {
+            int var5;
+            do {
+                var5 = this.getIntVolatile(var1, var2);
+            } while(!this.compareAndSwapInt(var1, var2, var5, var4));
+            return var5;
+        }
+
+        // 假定更新冲突比较少，出现冲突时就重试，不阻塞所以无上下文切换。
+        public final Object getAndSetObject(Object var1, long var2, Object var4) {
+            Object var5;
+            do {
+                var5 = this.getObjectVolatile(var1, var2);
+            } while(!this.compareAndSwapObject(var1, var2, var5, var4));
+            return var5;
+        }
+
+        // 假定更新冲突比较少，出现冲突时就重试，不阻塞所以无上下文切换。
+        public final int getAndAddInt(Object var1, long var2, int var4) {
+            int var5;
+            do {
+                var5 = this.getIntVolatile(var1, var2);
+            } while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));
+            return var5;
+        }
+
+
+    2.CPU调度
+        public native void unpark(Object var1);
+        public native void park(boolean var1, long var2);
+
+
+    3.类加载(非ClassLoader中的defineClass)
+        public native Class<?> defineClass(String var1, byte[] var2, int var3, int var4, ClassLoader var5, ProtectionDomain var6);
+
+    ###############################################
+
+    4.其他
+
+        private Unsafe() {
+        }
+
+        @CallerSensitive
+        public static Unsafe getUnsafe() {
+            Class var0 = Reflection.getCallerClass();
+            if (!VM.isSystemDomainLoader(var0.getClassLoader())) {
+                throw new SecurityException("Unsafe");
+            } else {
+                return theUnsafe;
+            }
+        }
+
+        public native long staticFieldOffset(Field var1);
+        public native long objectFieldOffset(Field var1);
+        public native int arrayBaseOffset(Class<?> var1);
+        public native int arrayIndexScale(Class<?> var1);
+
+    }
+
+
+
+二、package java.util.concurrent.locks;
+1.功能接口：Lock、Condition
+    public interface Lock {
+        void lock();
+        void lockInterruptibly() throws InterruptedException;
+        boolean tryLock();
+        boolean tryLock(long time, TimeUnit unit) throws InterruptedException;
+        void unlock();
+        Condition newCondition();
+    }
+
+    public interface Condition {
+        void await() throws InterruptedException;
+        void awaitUninterruptibly();
+        long awaitNanos(long nanosTimeout) throws InterruptedException;
+        boolean await(long time, TimeUnit unit) throws InterruptedException;
+        boolean awaitUntil(Date deadline) throws InterruptedException;
+        void signal();
+        void signalAll();
+    }
+
+
+2.底层依赖：CAS、LockSupport。(sun.misc.Unsafe)
+    public class LockSupport {
+        public static void park();
+        public static void parkNanos(long nanos);
+        public static void parkUntil(long deadline);
+        public static void park(Object blocker);
+        public static void parkNanos(Object blocker, long nanos);
+        public static void parkUntil(Object blocker, long deadline);
+
+        public static void unpark(Thread thread);
+
+        public static Object getBlocker(Thread t);
+        private static void setBlocker(Thread t, Object arg);
+    }
+
+
+3.功能实现：ReentrantLock
+    public class ReentrantLock implements Lock, java.io.Serializable {
+        private final Sync sync;
+
+        abstract static class Sync extends AbstractQueuedSynchronizer
+        static final class NonfairSync extends Sync
+        static final class FairSync extends Sync
+
+    }
+
+    public abstract class AbstractOwnableSynchronizer implements java.io.Serializable {
+        // 持锁线程
+        private transient Thread exclusiveOwnerThread;
+        protected final void setExclusiveOwnerThread(Thread thread) { exclusiveOwnerThread = thread; }
+        protected final Thread getExclusiveOwnerThread() { return exclusiveOwnerThread; }
+    }
+
+    public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer implements java.io.Serializable {
+        // 持锁状态
+        private volatile int state;
+        protected final int getState() { return state; }
+        protected final void setState(int newState) { state = newState; }
+        protected final boolean compareAndSetState(int expect, int update) { return unsafe.compareAndSwapInt(this, stateOffset, expect, update); }
+
+        // 等待队列
+        private transient volatile Node head;
+        private transient volatile Node tail;
+
+        static final class Node {
+            static final Node SHARED = new Node();
+            static final Node EXCLUSIVE = null;
+
+            static final int CANCELLED =  1;
+            static final int SIGNAL    = -1;
+            static final int CONDITION = -2;
+            static final int PROPAGATE = -3;
+
+            volatile Thread thread;
+            volatile int waitStatus;
+            volatile Node prev;
+            volatile Node next;
+            Node nextWaiter;
+
+            final boolean isShared() {
+                return nextWaiter == SHARED;
+            }
+
+            final Node predecessor() throws NullPointerException {
+                Node p = prev;
+                if (p == null)
+                    throw new NullPointerException();
+                else
+                    return p;
+            }
+
+            Node() {    // Used to establish initial head or SHARED marker
+            }
+
+            Node(Thread thread, Node mode) {     // Used by addWaiter
+                this.nextWaiter = mode;
+                this.thread = thread;
+            }
+
+            Node(Thread thread, int waitStatus) { // Used by Condition
+                this.waitStatus = waitStatus;
+                this.thread = thread;
+            }
+        }
+    }

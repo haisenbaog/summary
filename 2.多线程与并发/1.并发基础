@@ -1,0 +1,76 @@
+一、线程概念
+1.属性
+    id、name、priority、daemon
+    public enum State {
+        NEW/TERMINATED∶线程还未启动或已结束。
+        RUNNABLE∶线程在运行或具备运行条件只是在等待操作系统调度。
+        WAITING/TIMED_WAITING∶线程在等待某个条件或超时。
+        BLOCKED∶ 线程在等待锁，试图进入同步块。
+    }
+2.创建
+    ① 线程表示一条单独的执行流，有自己的栈与程序计数器。
+    ② 继承Thread；实现Runnable。
+3.优点
+    ① 充分利用硬件资源（多核CPU、等待IO等的间隙）；
+    ② 保存程序响应性；
+    ③ 简化建模。
+4.缺点
+    ① 线程创建成本：操作系统会为线程创建必要的数据结构、程序计数器与栈等。
+    ② 线程调度与切换成本(上下文切换)：耗时；使CPU中的很多缓存失效。
+        线程被切换出去时，需要保存上下文状态(寄存器与程序计数器的值)至内存；线程切换回来时，需要恢复上下文状态。
+5.问题（共享变量时，面临的问题）
+    ① 竞态条件：非原子性操作。
+    ② 内存可见性：数据会被缓存在CPU寄存器、各级缓存。修改可能仅写入缓存还没有及时同步至内存；仅读取缓存而没有读取内存。
+
+
+二、线程同步：synchronized
+1.使用
+    ① 修饰实例方法
+    ② 修饰静态方法
+    ③ 修饰代码块
+2.效果
+    ① 解决静态条件的问题：同一时刻，只能有一个线程获得锁，去运行受保护的代码。
+    ② 解决内存可见性的问题：线程获得锁后，会从内存读取最新数据；线程释放锁后，会将数据都写回内存。
+3.特点
+    可重入（线程在获得锁后，对于需要相同锁的代码，可以直接调用）：记录锁的持有线程和持有数量。
+4.防死锁
+     ① 避免获取多重锁
+     ② 获取锁的顺序要一致
+     ③ 使用Lock(tryLock/带时间限制的方法)
+5.原理
+    synchronized对应一个锁对象(monitor)；（任一Object对象，均可作为锁对象）
+    锁对象包含：持锁线程、持锁数量、等待队列、条件队列。
+    // TODO: 流转流程（包含wait、notify）
+
+
+三、线程协作：wait/notify
+1.场景
+    ① 常见场景：生产者/消费者模式、异步结果、等待结束
+    ② 其他场景：同时开始、集合点
+2.原理
+    参考synchronized
+
+
+四、线程中断：传递一个信号
+1.中断场景
+    ① 死循环模式下运行的线程，进行优雅关闭；
+    ② 取消任务。
+2.中断方法
+    // 中断该线程
+    public void interrupt() { // ... }
+    // 返回该线程的中断标志是否为true
+    public boolean isInterrupted() { return isInterrupted(false); }
+    // 返回该线程的中断标志是否为true；并清空中断标志位
+    public static boolean interrupted() { return currentThread().isInterrupted(true); }
+    private native boolean isInterrupted(boolean ClearInterrupted);
+3.中断效果
+    NEW/TERMINATED∶         无效果。
+    RUNNABLE∶               设置中断标志位。
+    WAITING/TIMED_WAITING∶  调用该线程的interrupt()方法：该线程会抛出InterruptedException；抛出异常后中断标志位会被清空。
+    BLOCKED∶                设置中断标志位。
+4.中断说明
+    ① 中断只是一种信号，是一种协作机制。为取消线程提供了一种方式，但并不一定取消线程，要取决于具体实现。
+    ② 以线程提供服务的程序模块，它应该封装取消/关闭操作，提供单独的取消/关闭方法给调用者，外部调用者应该调用这些方法而不是直接调用interrupt。
+5.中断异常处理
+    // TODO
+
